@@ -252,13 +252,11 @@ export class OdxApp extends LitElement {
   }
 
   private deleteProject(): void {
-    if (this.store.projects.length === 1) {
-      this.showToast('At least one display must remain')
-      return
-    }
     const projects = this.store.projects.filter((project) => project.id !== this.project.id)
-    this.persist({ ...this.store, activeProjectId: projects[0].id, projects })
+    this.persist({ ...this.store, activeProjectId: projects[0]?.id ?? '', projects })
     this.selectedRegionId = ''
+    this.layoutDraft = undefined
+    this.editorMode = 'widgets'
     this.showToast('Display deleted')
   }
 
@@ -780,7 +778,57 @@ export class OdxApp extends LitElement {
     `
   }
 
+  private renderWelcome(): TemplateResult {
+    return html`
+      <div class="app-shell welcome-shell">
+        <header class="topbar welcome-topbar">
+          <div class="brand"><span class="brand-mark">ODX</span><span class="brand-copy"><strong>OpenDisplay Studio</strong><span>Proof of Concept</span></span></div>
+          <span class="welcome-topline">Device-accurate e-paper composition</span>
+          <wa-button size="s" variant="brand" @click=${this.addProject}>${renderIcon(mdiPlus)} New display</wa-button>
+        </header>
+        <div class="workspace welcome-workspace">
+          <aside class="project-rail empty-rail" aria-label="Saved displays">
+            <div class="rail-heading"><h2>Displays</h2><button class="text-button" @click=${this.addProject}>+ New</button></div>
+            <div class="empty-library"><span class="empty-library-count">0</span><strong>No displays yet</strong><p>Your saved screens will appear here.</p></div>
+            <div class="rail-footer">Saved locally in this browser.<br />No account or cloud connection.</div>
+            <button class="rail-action import-empty" @click=${() => this.projectImport?.click()}>${renderIcon(mdiPlus)} Import project</button>
+          </aside>
+          <main class="welcome-main">
+            <section class="welcome-copy">
+              <span class="step-kicker">Start with the hardware</span>
+              <h1>Design an e-paper screen that fits the device.</h1>
+              <p>Choose a verified display, compose its native-pixel layout, then add widgets and export the exact screen as PNG or JPG.</p>
+              <div class="welcome-actions">
+                <wa-button size="l" variant="brand" @click=${this.addProject}>${renderIcon(mdiPlus)} Create your first display</wa-button>
+                <wa-button size="l" appearance="outlined" @click=${() => this.projectImport?.click()}>Import a project</wa-button>
+              </div>
+              <dl class="welcome-facts">
+                <div><dt>1</dt><dd><strong>Select hardware</strong><span>Model, palette and orientation</span></dd></div>
+                <div><dt>2</dt><dd><strong>Compose regions</strong><span>Device-aware native grid</span></dd></div>
+                <div><dt>3</dt><dd><strong>Add widgets</strong><span>Preview and export one surface</span></dd></div>
+              </dl>
+            </section>
+            <div class="welcome-visual" aria-hidden="true">
+              <div class="welcome-device-meta"><span>OPEN DISPLAY</span><code>800 × 480</code></div>
+              <div class="welcome-device">
+                <div class="welcome-screen">
+                  <div class="welcome-region welcome-region-a"><span>A</span><i></i><i></i></div>
+                  <div class="welcome-region welcome-region-b"><span>B</span><b>21°</b><small>HOME</small></div>
+                  <div class="welcome-region welcome-region-c"><span>C</span><em></em><em></em><em></em></div>
+                </div>
+              </div>
+              <div class="welcome-palette"><i></i><i></i><i></i><i></i><i></i><i></i><span>SPECTRA 6</span></div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <input id="project-import" type="file" accept="application/json,.json" hidden @change=${this.importProject} />
+      ${this.toastMessage ? html`<div class="toast" role="status">${this.toastMessage}</div>` : nothing}
+    `
+  }
+
   render(): TemplateResult {
+    if (this.store.projects.length === 0) return this.renderWelcome()
     return html`
       <div class="app-shell">
         <header class="topbar">

@@ -100,11 +100,10 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
 }
 
 export const createDefaultState = (): PersistedState => {
-  const project = createProject('Kitchen display', true)
   return {
     schemaVersion: 1,
-    activeProjectId: project.id,
-    projects: [project],
+    activeProjectId: '',
+    projects: [],
   }
 }
 
@@ -115,8 +114,7 @@ export const loadState = (): PersistedState => {
     const parsed = JSON.parse(raw) as PersistedState
     if (
       parsed.schemaVersion !== 1 ||
-      !Array.isArray(parsed.projects) ||
-      parsed.projects.length === 0
+      !Array.isArray(parsed.projects)
     ) {
       return createDefaultState()
     }
@@ -138,7 +136,10 @@ export const loadState = (): PersistedState => {
         }))),
       }
     })
-    return { ...parsed, projects }
+    const activeProjectId = projects.some((project) => project.id === parsed.activeProjectId)
+      ? parsed.activeProjectId
+      : projects[0]?.id ?? ''
+    return { ...parsed, activeProjectId, projects }
   } catch {
     return createDefaultState()
   }

@@ -13,6 +13,7 @@ Create a production build with `npm run build`. The generated `dist/` directory 
 
 ## Current capabilities
 
+- Empty first-run display library with guided create/import welcome screen
 - SOLUM Newton Pro display profiles from 1.6 to 12.2 inches, including freezer variants
 - Seeed reTerminal, XIAO, and DIY OpenDisplay hardware profiles
 - Custom Seeed EN04, EN05, EE04, and EE05 driver boards with connector-compatible verified panel presets
