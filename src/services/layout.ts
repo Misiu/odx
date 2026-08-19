@@ -105,18 +105,27 @@ export const rotateRegions = (
   regions: GridRegion[],
   oldGrid: GridSize,
   newGrid: GridSize,
+  direction: 'clockwise' | 'counterclockwise',
 ): GridRegion[] => {
   if (
     oldGrid.columns === newGrid.rows &&
     oldGrid.rows === newGrid.columns
   ) {
-    return regions.map((region) => ({
-      ...region,
-      row: region.column,
-      column: oldGrid.rows - (region.row + region.rowSpan - 1) + 1,
-      rowSpan: region.columnSpan,
-      columnSpan: region.rowSpan,
-    }))
+    return regions.map((region) => direction === 'clockwise'
+      ? {
+          ...region,
+          row: region.column,
+          column: oldGrid.rows - region.row - region.rowSpan + 2,
+          rowSpan: region.columnSpan,
+          columnSpan: region.rowSpan,
+        }
+      : {
+          ...region,
+          row: oldGrid.columns - region.column - region.columnSpan + 2,
+          column: region.row,
+          rowSpan: region.columnSpan,
+          columnSpan: region.rowSpan,
+        })
   }
 
   return createRegions(newGrid)

@@ -75,8 +75,53 @@ describe('layout service', () => {
       [{ id: 'wide', row: 1, column: 1, rowSpan: 1, columnSpan: 3 }],
       { columns: 5, rows: 2 },
       { columns: 2, rows: 5 },
+      'clockwise',
     )
 
     expect(rotated[0]).toMatchObject({ row: 1, column: 2, rowSpan: 3, columnSpan: 1 })
+  })
+
+  it('restores region geometry after a landscape and portrait round trip', () => {
+    const original: GridRegion[] = [
+      { id: 'a', row: 1, column: 1, rowSpan: 1, columnSpan: 2 },
+      { id: 'b', row: 2, column: 1, rowSpan: 1, columnSpan: 4 },
+    ]
+    const portrait = rotateRegions(
+      original,
+      { columns: 4, rows: 2 },
+      { columns: 2, rows: 4 },
+      'clockwise',
+    )
+    const restored = rotateRegions(
+      portrait,
+      { columns: 2, rows: 4 },
+      { columns: 4, rows: 2 },
+      'counterclockwise',
+    )
+
+    expect(restored).toEqual(original)
+    expect(restored[0]).toMatchObject({ id: 'a', row: 1, column: 1 })
+  })
+
+  it('keeps a top region at the top after a portrait and landscape round trip', () => {
+    const original: GridRegion[] = [
+      { id: 'a', row: 1, column: 1, rowSpan: 1, columnSpan: 2 },
+      { id: 'b', row: 2, column: 1, rowSpan: 3, columnSpan: 2 },
+    ]
+    const landscape = rotateRegions(
+      original,
+      { columns: 2, rows: 4 },
+      { columns: 4, rows: 2 },
+      'counterclockwise',
+    )
+    const restored = rotateRegions(
+      landscape,
+      { columns: 4, rows: 2 },
+      { columns: 2, rows: 4 },
+      'clockwise',
+    )
+
+    expect(restored).toEqual(original)
+    expect(restored[0]).toMatchObject({ id: 'a', row: 1, column: 1 })
   })
 })

@@ -169,6 +169,22 @@ export const appStyles = css`
     gap: 8px;
   }
 
+  .button-icon {
+    width: 1em;
+    height: 1em;
+    display: block;
+    flex: none;
+    fill: currentColor;
+  }
+
+  .export-actions {
+    flex: none;
+  }
+
+  .export-actions wa-dropdown {
+    display: inline-flex;
+  }
+
   .workspace {
     min-height: 0;
     display: grid;
@@ -1103,19 +1119,6 @@ export const appStyles = css`
 
   .layout-instructions strong {
     color: var(--odx-ink);
-  }
-
-  .layout-guide-actions {
-    margin-block-start: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--ha-space-2, 8px);
-    padding-block-start: var(--ha-space-4, 16px);
-    border-top: 1px solid var(--odx-line);
-  }
-
-  .layout-guide-actions wa-button {
-    width: 100%;
   }
 
   .inspector-heading {

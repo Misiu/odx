@@ -15,3 +15,9 @@ export const renderIcon = (path: string, label = ''): TemplateResult => html`
     <path d=${path}></path>
   </svg>
 `
+
+export const renderButtonIcon = (path: string): TemplateResult => html`
+  <svg slot="start" class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d=${path}></path>
+  </svg>
+`

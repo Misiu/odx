@@ -5,14 +5,16 @@ import {
   mdiCheck,
   mdiContentCopy,
   mdiDeleteOutline,
-  mdiDownload,
-  mdiExportVariant,
   mdiImageOutline,
+  mdiImport,
   mdiPlus,
   mdiRenameOutline,
   mdiTuneVariant,
 } from '@mdi/js'
 import '@home-assistant/webawesome/dist/components/button/button.js'
+import '@home-assistant/webawesome/dist/components/button-group/button-group.js'
+import '@home-assistant/webawesome/dist/components/dropdown/dropdown.js'
+import '@home-assistant/webawesome/dist/components/dropdown-item/dropdown-item.js'
 import '@home-assistant/webawesome/dist/styles/webawesome.css'
 import '@home-assistant/webawesome/dist/styles/themes/default.css'
 import { appStyles } from './app-styles'
@@ -55,7 +57,7 @@ import type {
   WidgetOption,
 } from './types'
 import { WIDGETS, getWidgetDefinition, widgetStyles } from './widgets/registry'
-import { renderIcon } from './widgets/shared'
+import { renderButtonIcon, renderIcon } from './widgets/shared'
 import { sharedWidgetStyles } from './widgets/shared-styles'
 
 const cloneProject = (project: ScreenProject): ScreenProject => {
@@ -329,7 +331,8 @@ export class OdxApp extends LitElement {
   private changeOrientation(orientation: Orientation): void {
     if (orientation === this.canvasProject.orientation) return
     const grid = gridForOrientation(this.canvasDisplay, orientation)
-    const regions = rotateRegions(this.canvasProject.regions, this.canvasProject.grid, grid)
+    const direction = orientation === 'portrait' ? 'clockwise' : 'counterclockwise'
+    const regions = rotateRegions(this.canvasProject.regions, this.canvasProject.grid, grid, direction)
     this.updateLayoutDraft((project) => ({ ...project, orientation, grid, regions }))
     this.selectedRegionId = ''
     this.mergeAnchor = undefined
@@ -484,6 +487,15 @@ export class OdxApp extends LitElement {
     }
   }
 
+  private handleExportSelection(event: Event): void {
+    const item = (event as CustomEvent<{ item: Element }>).detail.item
+    if (item.getAttribute('value') === 'jpeg') {
+      void this.exportImage('jpeg')
+    } else if (item.getAttribute('value') === 'project') {
+      downloadJson(this.project)
+    }
+  }
+
   private renderProjectRail(): TemplateResult {
     return html`
       <aside class="project-rail" aria-label="Saved displays">
@@ -503,9 +515,7 @@ export class OdxApp extends LitElement {
         </div>
         <div class="rail-footer">Saved locally in this browser.<br />No account or cloud connection.</div>
         <div class="rail-actions" aria-label="Project actions">
-          <button class="rail-action" @click=${() => this.projectImport?.click()}>${renderIcon(mdiPlus)} Import</button>
-          <button class="rail-action" @click=${() => downloadJson(this.project)}>${renderIcon(mdiExportVariant)} Project file</button>
-          <button class="rail-action" ?disabled=${this.editorMode === 'layout'} title=${this.editorMode === 'layout' ? 'Apply or cancel layout changes before exporting' : 'Export JPG'} @click=${() => this.exportImage('jpeg')}>${renderIcon(mdiDownload)} Export JPG</button>
+          <button class="rail-action" @click=${() => this.projectImport?.click()}>${renderIcon(mdiImport)} Import</button>
           <button class="rail-action danger" @click=${this.deleteProject}>${renderIcon(mdiDeleteOutline)} Delete</button>
         </div>
       </aside>
@@ -586,7 +596,7 @@ export class OdxApp extends LitElement {
           <strong>${driver ? `${driver.name} + ${this.display.name}` : this.display.name}</strong>
           <span>${pixels.width}×${pixels.height} · ${PALETTE_LABELS[this.project.palette]} · ${this.project.grid.columns}×${this.project.grid.rows} grid</span>
         </div>
-        <wa-button size="s" appearance="outlined" @click=${this.openLayoutEditor}>${renderIcon(mdiTuneVariant)} Edit device & layout</wa-button>
+        <wa-button size="s" appearance="outlined" @click=${this.openLayoutEditor}>${renderButtonIcon(mdiTuneVariant)} Edit device & layout</wa-button>
       </div>
     `
   }
@@ -732,7 +742,7 @@ export class OdxApp extends LitElement {
           `)}
         </div>
         ${definition
-          ? html`<div class="option-form">${definition.options.map((option) => this.renderOption(option))}</div><div class="danger-zone"><wa-button size="s" variant="danger" appearance="outlined" @click=${this.removeWidget}>${renderIcon(mdiDeleteOutline)} Remove widget</wa-button></div>`
+          ? html`<div class="option-form">${definition.options.map((option) => this.renderOption(option))}</div><div class="danger-zone"><wa-button size="s" variant="danger" appearance="outlined" @click=${this.removeWidget}>${renderButtonIcon(mdiDeleteOutline)} Remove widget</wa-button></div>`
           : html`<div class="inspector-empty"><div><strong>Choose a widget</strong><p>Each widget brings its own data source and configuration fields.</p></div></div>`}
       </aside>
     `
@@ -760,10 +770,6 @@ export class OdxApp extends LitElement {
           <li>Move across the grid and click the opposite corner.</li>
           <li>Double-click an existing region to remove it.</li>
         </ol>
-        <div class="layout-guide-actions">
-          <wa-button appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button>
-          <wa-button variant="brand" appearance="filled" @click=${this.applyLayoutEditor}>${renderIcon(mdiCheck)} Apply & choose widgets</wa-button>
-        </div>
       </aside>
     `
   }
@@ -784,7 +790,7 @@ export class OdxApp extends LitElement {
         <header class="topbar welcome-topbar">
           <div class="brand"><span class="brand-mark">ODX</span><span class="brand-copy"><strong>OpenDisplay Studio</strong><span>Proof of Concept</span></span></div>
           <span class="welcome-topline">Device-accurate e-paper composition</span>
-          <wa-button size="s" variant="brand" @click=${this.addProject}>${renderIcon(mdiPlus)} New display</wa-button>
+          <wa-button size="s" variant="brand" @click=${this.addProject}>${renderButtonIcon(mdiPlus)} New display</wa-button>
         </header>
         <div class="workspace welcome-workspace">
           <aside class="project-rail empty-rail" aria-label="Saved displays">
@@ -799,7 +805,7 @@ export class OdxApp extends LitElement {
               <h1>Design an e-paper screen that fits the device.</h1>
               <p>Choose a verified display, compose its native-pixel layout, then add widgets and export the exact screen as PNG or JPG.</p>
               <div class="welcome-actions">
-                <wa-button size="l" variant="brand" @click=${this.addProject}>${renderIcon(mdiPlus)} Create your first display</wa-button>
+                <wa-button size="l" variant="brand" @click=${this.addProject}>${renderButtonIcon(mdiPlus)} Create your first display</wa-button>
                 <wa-button size="l" appearance="outlined" @click=${() => this.projectImport?.click()}>Import a project</wa-button>
               </div>
               <dl class="welcome-facts">
@@ -843,11 +849,18 @@ export class OdxApp extends LitElement {
           </div>
           <div class="top-actions">
             ${this.editorMode === 'layout'
-              ? html`<wa-button size="s" appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button><wa-button size="s" variant="brand" appearance="filled" @click=${this.applyLayoutEditor}>${renderIcon(mdiCheck)} Apply layout</wa-button>`
+              ? html`<wa-button size="s" appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button><wa-button size="s" variant="brand" appearance="filled" @click=${this.applyLayoutEditor}>${renderButtonIcon(mdiCheck)} Apply layout</wa-button>`
               : html`
-                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.openRenameDialog}>${renderIcon(mdiRenameOutline)} Rename</wa-button>
-                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.duplicateProject}>${renderIcon(mdiContentCopy)} Duplicate</wa-button>
-                  <wa-button size="s" variant="brand" @click=${() => this.exportImage('png')} ?loading=${this.exporting}>${renderIcon(mdiImageOutline)} Export PNG</wa-button>
+                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.openRenameDialog}>${renderButtonIcon(mdiRenameOutline)} Rename</wa-button>
+                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.duplicateProject}>${renderButtonIcon(mdiContentCopy)} Duplicate</wa-button>
+                  <wa-button-group class="export-actions" label="Export display">
+                    <wa-button size="s" variant="brand" @click=${() => this.exportImage('png')} ?loading=${this.exporting}>${renderButtonIcon(mdiImageOutline)} Export PNG</wa-button>
+                    <wa-dropdown placement="bottom-end" @wa-select=${this.handleExportSelection}>
+                      <wa-button slot="trigger" size="s" variant="brand" with-caret aria-label="More export options" ?disabled=${this.exporting}></wa-button>
+                      <wa-dropdown-item value="jpeg">Export JPG</wa-dropdown-item>
+                      <wa-dropdown-item value="project">Project file</wa-dropdown-item>
+                    </wa-dropdown>
+                  </wa-button-group>
                 `}
           </div>
         </header>
