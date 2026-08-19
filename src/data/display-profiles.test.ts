@@ -15,11 +15,11 @@ describe('display profiles', () => {
     ]))
   })
 
-  it('uses a 5x2 landscape grid and a 2x5 portrait grid for Newton Pro 5.8', () => {
+  it('uses a readable 4x2 landscape grid and a 2x4 portrait grid for Newton Pro 5.8', () => {
     const profile = getDisplayProfile('solum-newton-pro-5-8')
 
-    expect(profile.grid.landscape).toEqual({ columns: 5, rows: 2 })
-    expect(profile.grid.portrait).toEqual({ columns: 2, rows: 5 })
+    expect(profile.grid.landscape).toEqual({ columns: 4, rows: 2 })
+    expect(profile.grid.portrait).toEqual({ columns: 2, rows: 4 })
   })
 
   it('uses a 3x3 grid for Newton Pro 7.5 in both orientations', () => {

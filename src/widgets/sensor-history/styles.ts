@@ -9,7 +9,7 @@ export const sensorHistoryStyles = css`
   }
 
   .metric {
-    font-size: clamp(16px, 20cqh, 48px);
+    font-size: clamp(14px, min(20cqh, 24cqw), 48px);
     font-weight: 900;
     line-height: 0.95;
     letter-spacing: -0.06em;

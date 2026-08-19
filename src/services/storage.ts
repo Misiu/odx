@@ -24,7 +24,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
         row: 1,
         column: 1,
         rowSpan: 1,
-        columnSpan: 3,
+        columnSpan: 2,
         widget: {
           type: 'sensor-history',
           version: 1,
@@ -40,7 +40,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
       {
         id: createId(),
         row: 1,
-        column: 4,
+        column: 3,
         rowSpan: 1,
         columnSpan: 2,
         widget: {
@@ -60,7 +60,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
         row: 2,
         column: 1,
         rowSpan: 1,
-        columnSpan: 5,
+        columnSpan: 4,
         widget: {
           type: 'calendar',
           version: 1,
@@ -101,7 +101,25 @@ export const loadState = (): PersistedState => {
     ) {
       return createDefaultState()
     }
-    return parsed
+    const projects = parsed.projects.map((project) => {
+      const profile = getDisplayProfile(project.displayId)
+      const expectedGrid = gridForOrientation(profile, project.orientation)
+      if (
+        project.grid.columns === expectedGrid.columns &&
+        project.grid.rows === expectedGrid.rows
+      ) return project
+
+      const widgets = project.regions.flatMap((region) => region.widget ? [region.widget] : [])
+      return {
+        ...project,
+        grid: expectedGrid,
+        regions: createRegions(expectedGrid).map((region, index) => ({
+          ...region,
+          widget: widgets[index],
+        })),
+      }
+    })
+    return { ...parsed, projects }
   } catch {
     return createDefaultState()
   }

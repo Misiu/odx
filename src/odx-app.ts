@@ -3,6 +3,7 @@ import { customElement, query, state } from 'lit/decorators.js'
 import { styleMap } from 'lit/directives/style-map.js'
 import { toJpeg, toPng } from 'html-to-image'
 import {
+  mdiCheck,
   mdiContentCopy,
   mdiDeleteOutline,
   mdiDownload,
@@ -11,6 +12,7 @@ import {
   mdiImageOutline,
   mdiPlus,
   mdiRenameOutline,
+  mdiTuneVariant,
 } from '@mdi/js'
 import '@home-assistant/webawesome/dist/components/button/button.js'
 import '@home-assistant/webawesome/dist/styles/webawesome.css'
@@ -68,6 +70,8 @@ const downloadDataUrl = (dataUrl: string, filename: string): void => {
   anchor.click()
 }
 
+type EditorMode = 'layout' | 'widgets'
+
 @customElement('odx-app')
 export class OdxApp extends LitElement {
   @state() private store: PersistedState = loadState()
@@ -77,6 +81,8 @@ export class OdxApp extends LitElement {
   @state() private toastMessage = ''
   @state() private exporting = false
   @state() private renameDraft = ''
+  @state() private editorMode: EditorMode = 'widgets'
+  @state() private layoutDraft?: ScreenProject
 
   @query('#display-screen') private displayScreen?: HTMLElement
   @query('#rename-dialog') private renameDialog?: HTMLDialogElement
@@ -92,6 +98,14 @@ export class OdxApp extends LitElement {
 
   private get display() {
     return getDisplayProfile(this.project.displayId)
+  }
+
+  private get canvasProject(): ScreenProject {
+    return this.layoutDraft ?? this.project
+  }
+
+  private get canvasDisplay() {
+    return getDisplayProfile(this.canvasProject.displayId)
   }
 
   private get selectedRegion(): GridRegion | undefined {
@@ -112,6 +126,38 @@ export class OdxApp extends LitElement {
     this.persist({ ...this.store, projects })
   }
 
+  private updateLayoutDraft(updater: (project: ScreenProject) => ScreenProject): void {
+    if (!this.layoutDraft) return
+    this.layoutDraft = updater(this.layoutDraft)
+  }
+
+  private openLayoutEditor(): void {
+    this.layoutDraft = structuredClone(this.project)
+    this.editorMode = 'layout'
+    this.selectedRegionId = ''
+    this.mergeMode = false
+    this.mergeAnchor = undefined
+  }
+
+  private cancelLayoutEditor(): void {
+    this.layoutDraft = undefined
+    this.editorMode = 'widgets'
+    this.mergeMode = false
+    this.mergeAnchor = undefined
+  }
+
+  private applyLayoutEditor(): void {
+    if (!this.layoutDraft) return
+    const draft = this.layoutDraft
+    this.updateProject(() => draft)
+    this.layoutDraft = undefined
+    this.editorMode = 'widgets'
+    this.mergeMode = false
+    this.mergeAnchor = undefined
+    this.selectedRegionId = ''
+    this.showToast('Device and layout updated')
+  }
+
   private showToast(message: string): void {
     this.toastMessage = message
     if (this.toastTimer) window.clearTimeout(this.toastTimer)
@@ -124,13 +170,17 @@ export class OdxApp extends LitElement {
     this.selectedRegionId = ''
     this.mergeMode = false
     this.mergeAnchor = undefined
+    this.layoutDraft = undefined
+    this.editorMode = 'widgets'
     this.persist({ ...this.store, activeProjectId: projectId })
   }
 
   private addProject(): void {
     const project = createProject(`Untitled display ${this.store.projects.length + 1}`)
     this.persist({ ...this.store, activeProjectId: project.id, projects: [...this.store.projects, project] })
-    this.selectedRegionId = project.regions[0]?.id ?? ''
+    this.selectedRegionId = ''
+    this.layoutDraft = structuredClone(project)
+    this.editorMode = 'layout'
     this.showToast('Display created')
   }
 
@@ -168,14 +218,14 @@ export class OdxApp extends LitElement {
   private changeDisplay(event: Event): void {
     const displayId = (event.currentTarget as HTMLSelectElement).value
     const profile = getDisplayProfile(displayId)
-    const grid = gridForOrientation(profile, this.project.orientation)
-    const sameGrid = grid.columns === this.project.grid.columns && grid.rows === this.project.grid.rows
-    const widgets = this.project.regions.flatMap((region) => region.widget ? [region.widget] : [])
+    const grid = gridForOrientation(profile, this.canvasProject.orientation)
+    const sameGrid = grid.columns === this.canvasProject.grid.columns && grid.rows === this.canvasProject.grid.rows
+    const widgets = this.canvasProject.regions.flatMap((region) => region.widget ? [region.widget] : [])
     const regions = sameGrid
-      ? this.project.regions
+      ? this.canvasProject.regions
       : createRegions(grid).map((region, index) => ({ ...region, widget: widgets[index] }))
 
-    this.updateProject((project) => ({
+    this.updateLayoutDraft((project) => ({
       ...project,
       displayId,
       palette: profile.palettes.includes(project.palette) ? project.palette : profile.defaultPalette,
@@ -189,14 +239,14 @@ export class OdxApp extends LitElement {
 
   private changePalette(event: Event): void {
     const palette = (event.currentTarget as HTMLSelectElement).value as PaletteId
-    this.updateProject((project) => ({ ...project, palette }))
+    this.updateLayoutDraft((project) => ({ ...project, palette }))
   }
 
   private changeOrientation(orientation: Orientation): void {
-    if (orientation === this.project.orientation) return
-    const grid = gridForOrientation(this.display, orientation)
-    const regions = rotateRegions(this.project.regions, this.project.grid, grid)
-    this.updateProject((project) => ({ ...project, orientation, grid, regions }))
+    if (orientation === this.canvasProject.orientation) return
+    const grid = gridForOrientation(this.canvasDisplay, orientation)
+    const regions = rotateRegions(this.canvasProject.regions, this.canvasProject.grid, grid)
+    this.updateLayoutDraft((project) => ({ ...project, orientation, grid, regions }))
     this.selectedRegionId = ''
     this.mergeAnchor = undefined
   }
@@ -211,15 +261,15 @@ export class OdxApp extends LitElement {
       this.mergeAnchor = cell
       return
     }
-    const regions = mergeRegions(this.project.regions, this.mergeAnchor, cell)
+    const regions = mergeRegions(this.canvasProject.regions, this.mergeAnchor, cell)
     if (!regions) {
       this.mergeAnchor = undefined
       this.showToast('The selected rectangle crosses an existing merged region')
       return
     }
-    const previousIds = new Set(this.project.regions.map((region) => region.id))
+    const previousIds = new Set(this.canvasProject.regions.map((region) => region.id))
     const mergedRegion = regions.find((region) => !previousIds.has(region.id))
-    this.updateProject((project) => ({ ...project, regions }))
+    this.updateLayoutDraft((project) => ({ ...project, regions }))
     this.selectedRegionId = mergedRegion?.id ?? ''
     this.mergeAnchor = undefined
     this.mergeMode = false
@@ -227,9 +277,9 @@ export class OdxApp extends LitElement {
   }
 
   private splitSelectedRegion(regionId: string): void {
-    const region = this.project.regions.find((item) => item.id === regionId)
+    const region = this.canvasProject.regions.find((item) => item.id === regionId)
     if (!region || (region.rowSpan === 1 && region.columnSpan === 1)) return
-    this.updateProject((project) => ({ ...project, regions: splitRegion(project.regions, regionId) }))
+    this.updateLayoutDraft((project) => ({ ...project, regions: splitRegion(project.regions, regionId) }))
     this.selectedRegionId = ''
     this.showToast('Region split')
   }
@@ -352,37 +402,39 @@ export class OdxApp extends LitElement {
   }
 
   private renderToolbar(): TemplateResult {
+    const project = this.canvasProject
+    const display = this.canvasDisplay
     return html`
-      <div class="device-toolbar">
+      <div class="device-toolbar layout-toolbar">
         <div class="control grow">
           <label for="device-model">Device model</label>
-          <select id="device-model" .value=${this.display.id} @change=${this.changeDisplay}>
+          <select id="device-model" .value=${display.id} @change=${this.changeDisplay}>
             <optgroup label="SOLUM · Newton Pro">
               ${DISPLAY_PROFILES.filter((profile) => profile.family === 'Newton Pro').map((profile) => html`
-                <option value=${profile.id} ?selected=${profile.id === this.display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}${profile.freezer ? ' · mono' : ''}</option>
+                <option value=${profile.id} ?selected=${profile.id === display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}${profile.freezer ? ' · mono' : ''}</option>
               `)}
             </optgroup>
             <optgroup label="OpenDisplay reference hardware">
               ${DISPLAY_PROFILES.filter((profile) => profile.family === 'OpenDisplay').map((profile) => html`
-                <option value=${profile.id} ?selected=${profile.id === this.display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}</option>
+                <option value=${profile.id} ?selected=${profile.id === display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}</option>
               `)}
             </optgroup>
           </select>
         </div>
         <div class="control">
           <label for="palette">Palette</label>
-          <select id="palette" .value=${this.project.palette} @change=${this.changePalette}>
-            ${this.display.palettes.map((palette) => html`<option value=${palette} ?selected=${palette === this.project.palette}>${PALETTE_LABELS[palette]}</option>`)}
+          <select id="palette" .value=${project.palette} @change=${this.changePalette}>
+            ${display.palettes.map((palette) => html`<option value=${palette} ?selected=${palette === project.palette}>${PALETTE_LABELS[palette]}</option>`)}
           </select>
         </div>
         <div class="control">
           <span class="field-label">Orientation</span>
           <div class="segment" role="group" aria-label="Display orientation">
-            <button class=${this.project.orientation === 'landscape' ? 'active' : ''} @click=${() => this.changeOrientation('landscape')}>Landscape</button>
-            <button class=${this.project.orientation === 'portrait' ? 'active' : ''} @click=${() => this.changeOrientation('portrait')}>Portrait</button>
+            <button class=${project.orientation === 'landscape' ? 'active' : ''} @click=${() => this.changeOrientation('landscape')}>Landscape</button>
+            <button class=${project.orientation === 'portrait' ? 'active' : ''} @click=${() => this.changeOrientation('portrait')}>Portrait</button>
           </div>
         </div>
-        <span class="grid-badge">GRID ${this.project.grid.columns}×${this.project.grid.rows}</span>
+        <span class="grid-badge">GRID ${project.grid.columns}×${project.grid.rows}</span>
         <wa-button size="s" variant=${this.mergeMode ? 'brand' : 'neutral'} appearance="outlined" @click=${this.toggleMergeMode}>
           ${renderIcon(mdiGridLarge)} ${this.mergeMode ? 'Cancel merge' : 'Merge regions'}
         </wa-button>
@@ -390,29 +442,49 @@ export class OdxApp extends LitElement {
     `
   }
 
+  private renderWidgetToolbar(): TemplateResult {
+    const pixels = getPixelSize(this.display, this.project.orientation)
+    return html`
+      <div class="device-toolbar widget-toolbar">
+        <div class="device-summary">
+          <span class="step-kicker">Step 2 · Widgets</span>
+          <strong>${this.display.name}</strong>
+          <span>${pixels.width}×${pixels.height} · ${PALETTE_LABELS[this.project.palette]} · ${this.project.grid.columns}×${this.project.grid.rows} grid</span>
+        </div>
+        <wa-button size="s" appearance="outlined" @click=${this.openLayoutEditor}>${renderIcon(mdiTuneVariant)} Edit device & layout</wa-button>
+      </div>
+    `
+  }
+
   private renderScreenRegion(region: GridRegion): TemplateResult {
     const definition = region.widget ? getWidgetDefinition(region.widget.type) : undefined
     const compact = region.columnSpan === 1 || region.rowSpan === 1
+    const layoutMode = this.editorMode === 'layout'
+    const regionNumber = [...this.canvasProject.regions]
+      .sort((first, second) => first.row - second.row || first.column - second.column)
+      .findIndex((item) => item.id === region.id) + 1
     return html`
       <section
-        class="screen-region ${region.widget ? '' : 'empty'} ${region.id === this.selectedRegionId ? 'selected' : ''}"
+        class="screen-region ${layoutMode ? 'layout-region' : region.widget ? '' : 'empty'} ${!layoutMode && region.id === this.selectedRegionId ? 'selected' : ''}"
         style=${styleMap({ gridColumn: `${region.column} / span ${region.columnSpan}`, gridRow: `${region.row} / span ${region.rowSpan}` })}
-        aria-label=${definition ? `${definition.name} region` : 'Empty region'}
-        @click=${() => (this.selectedRegionId = region.id)}
-        @dblclick=${() => this.splitSelectedRegion(region.id)}
+        aria-label=${layoutMode ? `Layout region ${regionNumber}` : definition ? `${definition.name} region` : 'Empty region'}
+        @click=${() => { if (!layoutMode) this.selectedRegionId = region.id }}
+        @dblclick=${() => { if (layoutMode) this.splitSelectedRegion(region.id) }}
       >
-        ${definition && region.widget
-          ? definition.render(region.widget.config, { compact, palette: this.project.palette })
-          : html`<div class="empty-region-copy"><strong>Add widget</strong><span>${region.columnSpan}×${region.rowSpan} region</span></div>`}
+        ${layoutMode
+          ? html`<div class="layout-region-copy"><strong>${regionNumber}</strong><span>${region.columnSpan}×${region.rowSpan}</span></div>`
+          : definition && region.widget
+            ? definition.render(region.widget.config, { compact, palette: this.project.palette })
+            : html`<div class="empty-region-copy"><strong>Add widget</strong><span>${region.columnSpan}×${region.rowSpan} region</span></div>`}
       </section>
     `
   }
 
   private renderMergeLayer(): TemplateResult {
     if (!this.mergeMode) return html``
-    const cells = Array.from({ length: this.project.grid.columns * this.project.grid.rows }, (_, index) => ({
-      row: Math.floor(index / this.project.grid.columns) + 1,
-      column: (index % this.project.grid.columns) + 1,
+    const cells = Array.from({ length: this.canvasProject.grid.columns * this.canvasProject.grid.rows }, (_, index) => ({
+      row: Math.floor(index / this.canvasProject.grid.columns) + 1,
+      column: (index % this.canvasProject.grid.columns) + 1,
     }))
     return html`
       <div class="merge-layer active" aria-label="Merge grid">
@@ -428,25 +500,31 @@ export class OdxApp extends LitElement {
   }
 
   private renderCanvas(): TemplateResult {
-    const pixels = getPixelSize(this.display, this.project.orientation)
+    const project = this.canvasProject
+    const display = this.canvasDisplay
+    const pixels = getPixelSize(display, project.orientation)
     return html`
       <main class="canvas-area">
         <div class="canvas-stage" style=${styleMap({ '--screen-aspect': String(pixels.width / pixels.height) })}>
-          <div class="screen-meta"><span>${this.display.manufacturer} · ${this.display.diagonal}″</span><code>${pixels.width} × ${pixels.height} px</code></div>
-          <div class="screen-bezel">
-            <div
-              id="display-screen"
-              class="display-screen ${this.exporting ? 'exporting' : ''}"
-              data-palette=${this.project.palette}
-              style=${styleMap({ '--grid-columns': String(this.project.grid.columns), '--grid-rows': String(this.project.grid.rows) })}
-            >
-              ${this.project.regions.map((region) => this.renderScreenRegion(region))}
-              ${this.renderMergeLayer()}
+          <div class="screen-meta"><span>${display.manufacturer} · ${display.diagonal}″</span><code>${pixels.width} × ${pixels.height} px</code></div>
+          <div class="preview-boundary">
+            <div class="screen-bezel">
+              <div
+                id="display-screen"
+                class="display-screen ${this.exporting ? 'exporting' : ''}"
+                data-palette=${project.palette}
+                style=${styleMap({ '--grid-columns': String(project.grid.columns), '--grid-rows': String(project.grid.rows) })}
+              >
+                ${project.regions.map((region) => this.renderScreenRegion(region))}
+                ${this.renderMergeLayer()}
+              </div>
             </div>
           </div>
-          ${this.mergeMode
-            ? html`<div class="merge-help">${this.mergeAnchor ? html`<strong>First corner selected.</strong> Choose the opposite corner.` : html`Choose the first corner, then the opposite corner of a rectangle.`}</div>`
-            : html`<div class="merge-help"><strong>Tip:</strong> Double-click a merged region to split it.</div>`}
+          ${this.editorMode === 'layout'
+            ? this.mergeMode
+              ? html`<div class="merge-help">${this.mergeAnchor ? html`<strong>First corner selected.</strong> Choose the opposite corner.` : html`Choose the first corner, then the opposite corner of a rectangle.`}</div>`
+              : html`<div class="merge-help"><strong>Layout mode:</strong> Merge regions or double-click a merged region to split it.</div>`
+            : html`<div class="merge-help"><strong>Widget mode:</strong> Select a region to configure its content.</div>`}
         </div>
       </main>
     `
@@ -496,6 +574,33 @@ export class OdxApp extends LitElement {
     `
   }
 
+  private renderLayoutGuide(): TemplateResult {
+    const project = this.canvasProject
+    const pixels = getPixelSize(this.canvasDisplay, project.orientation)
+    return html`
+      <aside class="inspector layout-guide">
+        <span class="step-kicker">Step 1 · Device & layout</span>
+        <h2>Prepare the canvas</h2>
+        <p>Choose the hardware and palette, then compose regions before assigning widgets.</p>
+        <dl class="device-facts">
+          <div><dt>Device</dt><dd>${this.canvasDisplay.name}</dd></div>
+          <div><dt>Output</dt><dd>${pixels.width} × ${pixels.height} px</dd></div>
+          <div><dt>Grid</dt><dd>${project.grid.columns} × ${project.grid.rows}</dd></div>
+          <div><dt>Regions</dt><dd>${project.regions.length}</dd></div>
+        </dl>
+        <ol class="layout-instructions">
+          <li>Select <strong>Merge regions</strong>.</li>
+          <li>Choose opposite corners of a rectangle.</li>
+          <li>Double-click a merged region to split it.</li>
+        </ol>
+        <div class="layout-guide-actions">
+          <wa-button appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button>
+          <wa-button variant="brand" appearance="filled" @click=${this.applyLayoutEditor}>${renderIcon(mdiCheck)} Apply & choose widgets</wa-button>
+        </div>
+      </aside>
+    `
+  }
+
   private renderRenameDialog(): TemplateResult {
     return html`
       <dialog id="rename-dialog"><div class="dialog-body">
@@ -511,14 +616,29 @@ export class OdxApp extends LitElement {
       <div class="app-shell">
         <header class="topbar">
           <div class="brand"><span class="brand-mark">ODX</span><span class="brand-copy"><strong>OpenDisplay Studio</strong><span>E-paper composer</span></span></div>
-          <div class="project-title"><strong>${this.project.name}</strong><span class="autosave-state">Saved locally</span></div>
+          <div class="project-context">
+            <div class="project-title"><strong>${this.project.name}</strong><span class="autosave-state">${this.editorMode === 'layout' ? 'Changes not applied' : 'Saved locally'}</span></div>
+            <div class="workflow" aria-label="Editor workflow">
+              <span class=${this.editorMode === 'layout' ? 'active' : 'complete'}><b>1</b> Device & layout</span>
+              <i aria-hidden="true"></i>
+              <span class=${this.editorMode === 'widgets' ? 'active' : ''}><b>2</b> Widgets</span>
+            </div>
+          </div>
           <div class="top-actions">
-            <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.openRenameDialog}>${renderIcon(mdiRenameOutline)} Rename</wa-button>
-            <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.duplicateProject}>${renderIcon(mdiContentCopy)} Duplicate</wa-button>
-            <wa-button size="s" variant="brand" @click=${() => this.exportImage('png')} ?loading=${this.exporting}>${renderIcon(mdiImageOutline)} Export PNG</wa-button>
+            ${this.editorMode === 'layout'
+              ? html`<wa-button size="s" appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button><wa-button size="s" variant="brand" appearance="filled" @click=${this.applyLayoutEditor}>${renderIcon(mdiCheck)} Apply layout</wa-button>`
+              : html`
+                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.openRenameDialog}>${renderIcon(mdiRenameOutline)} Rename</wa-button>
+                  <wa-button class="secondary-action" size="s" appearance="outlined" @click=${this.duplicateProject}>${renderIcon(mdiContentCopy)} Duplicate</wa-button>
+                  <wa-button size="s" variant="brand" @click=${() => this.exportImage('png')} ?loading=${this.exporting}>${renderIcon(mdiImageOutline)} Export PNG</wa-button>
+                `}
           </div>
         </header>
-        <div class="workspace">${this.renderProjectRail()}<section class="editor">${this.renderToolbar()}${this.renderCanvas()}</section>${this.renderInspector()}</div>
+        <div class="workspace">
+          ${this.renderProjectRail()}
+          <section class="editor">${this.editorMode === 'layout' ? this.renderToolbar() : this.renderWidgetToolbar()}${this.renderCanvas()}</section>
+          ${this.editorMode === 'layout' ? this.renderLayoutGuide() : this.renderInspector()}
+        </div>
       </div>
       <input id="project-import" type="file" accept="application/json,.json" hidden @change=${this.importProject} />
       ${this.renderRenameDialog()}

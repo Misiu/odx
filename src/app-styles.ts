@@ -12,6 +12,8 @@ export const appStyles = css`
     --odx-warning: var(--warning-color, #f4a000);
     --odx-danger: var(--error-color, #db4437);
     --odx-radius: var(--ha-card-border-radius, 14px);
+    --odx-canvas-max-width: 880px;
+    --odx-canvas-max-height: 520px;
     display: block;
     min-width: 320px;
     min-height: 100svh;
@@ -96,6 +98,57 @@ export const appStyles = css`
     display: flex;
     align-items: baseline;
     gap: 10px;
+  }
+
+  .project-context {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ha-space-4, 16px);
+  }
+
+  .workflow {
+    display: flex;
+    align-items: center;
+    gap: var(--ha-space-2, 8px);
+    color: var(--odx-muted);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .workflow span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .workflow b {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--odx-line);
+    border-radius: 50%;
+    background: var(--odx-surface);
+    font: 800 10px/1 ui-monospace, Consolas, monospace;
+  }
+
+  .workflow .active {
+    color: var(--odx-blue-strong);
+  }
+
+  .workflow .active b,
+  .workflow .complete b {
+    border-color: var(--odx-blue);
+    background: color-mix(in srgb, var(--odx-blue) 13%, var(--odx-surface));
+  }
+
+  .workflow i {
+    width: 22px;
+    height: 1px;
+    background: var(--odx-line);
   }
 
   .project-title strong {
@@ -301,6 +354,38 @@ export const appStyles = css`
     flex-wrap: wrap;
   }
 
+  .widget-toolbar {
+    align-items: center;
+    justify-content: space-between;
+    min-height: 72px;
+  }
+
+  .device-summary {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .step-kicker {
+    color: var(--odx-blue-strong);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .device-summary strong {
+    font-size: 13px;
+  }
+
+  .device-summary > span:last-child {
+    overflow: hidden;
+    color: var(--odx-muted);
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .control {
     display: flex;
     flex-direction: column;
@@ -380,7 +465,7 @@ export const appStyles = css`
 
   .canvas-area {
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
     container-type: size;
     padding: 28px;
     background-color: var(--odx-canvas);
@@ -398,7 +483,7 @@ export const appStyles = css`
   }
 
   .screen-meta {
-    width: min(900px, calc(100cqw - 56px), calc((100cqh - 96px) * var(--screen-aspect, 1.6)));
+    width: min(100%, var(--odx-canvas-max-width));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -413,10 +498,18 @@ export const appStyles = css`
     color: var(--odx-ink);
   }
 
+  .preview-boundary {
+    width: min(100%, var(--odx-canvas-max-width));
+    height: min(var(--odx-canvas-max-height), calc(100cqh - 110px));
+    min-height: 180px;
+    display: grid;
+    place-items: center;
+    container-type: size;
+  }
+
   .screen-bezel {
-    width: min(900px, calc(100cqw - 56px), calc((100cqh - 96px) * var(--screen-aspect, 1.6)));
-    aspect-ratio: var(--screen-aspect, 1.6);
-    padding: clamp(8px, 1.6vw, 18px);
+    width: min(100cqw, calc((100cqh - 24px) * var(--screen-aspect, 1.6) + 24px));
+    padding: 12px;
     border-radius: clamp(12px, 2vw, 24px);
     background: #25292c;
     box-shadow: 0 16px 42px rgba(31, 43, 50, 0.18), 0 2px 7px rgba(31, 43, 50, 0.22);
@@ -436,7 +529,8 @@ export const appStyles = css`
 
   .display-screen {
     width: 100%;
-    height: 100%;
+    height: auto;
+    aspect-ratio: var(--screen-aspect, 1.6);
     position: relative;
     overflow: hidden;
     display: grid;
@@ -540,6 +634,30 @@ export const appStyles = css`
     color: var(--screen-muted);
   }
 
+  .screen-region.layout-region {
+    display: grid;
+    place-items: center;
+    border-style: solid;
+    background: color-mix(in srgb, var(--screen-accent) 7%, var(--screen-paper));
+  }
+
+  .layout-region-copy {
+    display: grid;
+    place-items: center;
+    gap: 0.25em;
+    text-align: center;
+  }
+
+  .layout-region-copy strong {
+    font-size: clamp(14px, 22cqh, 44px);
+    line-height: 1;
+  }
+
+  .layout-region-copy span {
+    color: var(--screen-muted);
+    font: 700 clamp(6px, 6cqh, 11px)/1 ui-monospace, Consolas, monospace;
+  }
+
   .empty-region-copy {
     display: flex;
     flex-direction: column;
@@ -592,6 +710,86 @@ export const appStyles = css`
     border-left: 1px solid var(--odx-line);
     padding: 18px;
     overflow: auto;
+  }
+
+  .layout-guide {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ha-space-3, 12px);
+  }
+
+  .layout-guide h2 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: -0.03em;
+  }
+
+  .layout-guide > p {
+    margin: 0;
+    color: var(--odx-muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .device-facts {
+    margin: var(--ha-space-2, 8px) 0 0;
+    border-block: 1px solid var(--odx-line);
+  }
+
+  .device-facts div {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: var(--ha-space-2, 8px);
+    padding-block: 9px;
+    border-bottom: 1px solid var(--odx-line);
+  }
+
+  .device-facts div:last-child {
+    border-bottom: 0;
+  }
+
+  .device-facts dt {
+    color: var(--odx-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .device-facts dd {
+    min-width: 0;
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .layout-instructions {
+    margin: 0;
+    padding-inline-start: 20px;
+    color: var(--odx-muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .layout-instructions li + li {
+    margin-block-start: var(--ha-space-2, 8px);
+  }
+
+  .layout-instructions strong {
+    color: var(--odx-ink);
+  }
+
+  .layout-guide-actions {
+    margin-block-start: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ha-space-2, 8px);
+    padding-block-start: var(--ha-space-4, 16px);
+    border-top: 1px solid var(--odx-line);
+  }
+
+  .layout-guide-actions wa-button {
+    width: 100%;
   }
 
   .inspector-heading {
@@ -836,7 +1034,7 @@ export const appStyles = css`
       grid-template-columns: minmax(0, 1fr) auto;
     }
 
-    .project-title {
+    .project-context {
       display: none;
     }
 
@@ -860,9 +1058,8 @@ export const appStyles = css`
       padding: 20px 14px;
     }
 
-    .screen-meta,
-    .screen-bezel {
-      width: min(900px, calc(100cqw - 28px), calc((100cqh - 90px) * var(--screen-aspect, 1.6)));
+    .preview-boundary {
+      height: min(var(--odx-canvas-max-height), calc(100cqh - 94px));
     }
   }
 
@@ -882,6 +1079,10 @@ export const appStyles = css`
 
     .device-toolbar {
       align-items: stretch;
+    }
+
+    .widget-toolbar {
+      align-items: center;
     }
 
     .control.grow {

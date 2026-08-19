@@ -16,12 +16,20 @@ Create a production build with `npm run build`. The generated `dist/` directory 
 - SOLUM Newton Pro display profiles from 1.6 to 12.2 inches, including freezer variants
 - OpenDisplay reference hardware profiles
 - Device-aware landscape and portrait grids
+- Two-step workflow separating device/layout composition from widget configuration
 - Rectangular region merging and double-click splitting
 - Sensor history, weather, calendar, entity value, and text note widgets
 - Widget-specific configuration with mock Home Assistant entities
 - Browser-local persistence plus project JSON import/export
 - Device-resolution PNG and JPG export
 - Home Assistant-compatible CSS theme variables and WebAwesome controls
+
+## Editing workflow
+
+1. Open **Device & layout** to choose the model, palette, orientation, and region composition. Changes remain a draft until **Apply layout** is selected.
+2. Use **Widgets** to assign content and edit widget-specific options. Select **Edit device & layout** whenever the hardware setup or region structure needs to change.
+
+The preview fits every device proportionally inside an 880 × 520 CSS-pixel canvas. Export still renders at the selected display's native pixel resolution.
 
 ## Architecture
 

@@ -9,7 +9,7 @@ export const weatherStyles = css`
   }
 
   .weather-temperature {
-    font-size: clamp(18px, 24cqh, 52px);
+    font-size: clamp(15px, min(24cqh, 28cqw), 52px);
     font-weight: 900;
     line-height: 0.9;
     letter-spacing: -0.08em;
