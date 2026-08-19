@@ -679,7 +679,7 @@ export class OdxApp extends LitElement {
               <div class="screen-bezel">
                 <div
                   id="display-screen"
-                  class="display-screen ${this.exporting ? 'exporting' : ''}"
+                  class="display-screen"
                   data-palette=${project.palette}
                   style=${styleMap({
                     '--grid-columns': String(project.grid.columns),

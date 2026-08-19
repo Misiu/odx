@@ -72,39 +72,58 @@ const validateRenderedImage = async (dataUrl: string, size: ImageSize): Promise<
   }
 }
 
-/**
- * Renders after the live element has been laid out at the device's native size.
- * html-to-image copies computed child sizes, so resizing only its cloned root
- * produces a cropped or partially filled bitmap when the preview is scaled.
- */
-export const renderDeviceImage = async (
-  element: HTMLElement,
+const createExportSurface = (
+  source: HTMLElement,
   size: ImageSize,
-  format: ImageExportFormat,
-): Promise<string> => {
-  const originalStyle = element.getAttribute('style')
-  const host = element.parentElement
-  const originalHostStyle = host?.getAttribute('style') ?? null
-
-  Object.assign(element.style, {
+): { element: HTMLElement; remove: () => void } => {
+  const staging = document.createElement('div')
+  const clone = source.cloneNode(true) as HTMLElement
+  clone.removeAttribute('id')
+  clone.classList.add('exporting')
+  Object.assign(clone.style, {
     width: `${size.width}px`,
     height: `${size.height}px`,
     maxWidth: 'none',
     maxHeight: 'none',
     aspectRatio: 'auto',
   })
-  if (host) Object.assign(host.style, {
+
+  staging.setAttribute('aria-hidden', 'true')
+  staging.inert = true
+  Object.assign(staging.style, {
     position: 'fixed',
     left: '-100000px',
     top: '0',
+    width: `${size.width}px`,
+    height: `${size.height}px`,
     opacity: '0',
     pointerEvents: 'none',
-    transform: 'none',
+    overflow: 'hidden',
   })
+  staging.append(clone)
+
+  const root = source.getRootNode()
+  if (root instanceof ShadowRoot) root.append(staging)
+  else document.body.append(staging)
+
+  return { element: clone, remove: () => staging.remove() }
+}
+
+/**
+ * Renders an isolated native-size clone in the source element's Shadow DOM.
+ * Keeping the clone in the same render root preserves scoped widget styles,
+ * while the visible, scaled preview remains untouched throughout the export.
+ */
+export const renderDeviceImage = async (
+  source: HTMLElement,
+  size: ImageSize,
+  format: ImageExportFormat,
+): Promise<string> => {
+  const exportSurface = createExportSurface(source, size)
 
   try {
     await waitForLayout()
-    const bounds = element.getBoundingClientRect()
+    const bounds = exportSurface.element.getBoundingClientRect()
     if (Math.round(bounds.width) !== size.width || Math.round(bounds.height) !== size.height) {
       throw new Error(`Export surface is ${bounds.width}×${bounds.height}; expected ${size.width}×${size.height}`)
     }
@@ -128,16 +147,11 @@ export const renderDeviceImage = async (
     }
 
     const dataUrl = format === 'png'
-      ? await toPng(element, options)
-      : await toJpeg(element, { ...options, quality: 0.96 })
+      ? await toPng(exportSurface.element, options)
+      : await toJpeg(exportSurface.element, { ...options, quality: 0.96 })
     await validateRenderedImage(dataUrl, size)
     return dataUrl
   } finally {
-    if (originalStyle === null) element.removeAttribute('style')
-    else element.setAttribute('style', originalStyle)
-    if (host) {
-      if (originalHostStyle === null) host.removeAttribute('style')
-      else host.setAttribute('style', originalHostStyle)
-    }
+    exportSurface.remove()
   }
 }
