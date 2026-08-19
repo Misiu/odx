@@ -30,6 +30,22 @@ describe('layout service', () => {
     }))
   })
 
+  it('creates a distinct region from a single selected cell', () => {
+    const regions = createRegions({ columns: 3, rows: 3 })
+    const original = regions.find((region) => region.row === 3 && region.column === 3)!
+    const composed = mergeRegions(regions, { row: 3, column: 3 }, { row: 3, column: 3 })
+
+    expect(composed).not.toBeNull()
+    expect(composed).toHaveLength(9)
+    expect(composed).toContainEqual(expect.objectContaining({
+      row: 3,
+      column: 3,
+      rowSpan: 1,
+      columnSpan: 1,
+    }))
+    expect(composed!.find((region) => region.row === 3 && region.column === 3)?.id).not.toBe(original.id)
+  })
+
   it('rejects a selection that cuts through a merged region', () => {
     const regions: GridRegion[] = [
       { id: 'wide', row: 1, column: 1, rowSpan: 1, columnSpan: 2 },
@@ -47,6 +63,18 @@ describe('layout service', () => {
 
     expect(split).toHaveLength(6)
     expect(split.every((region) => region.rowSpan === 1 && region.columnSpan === 1)).toBe(true)
+  })
+
+  it('removes the composed state from a labeled 1x1 region', () => {
+    const split = splitRegion(
+      [{ id: 'single', label: 'C', row: 3, column: 3, rowSpan: 1, columnSpan: 1 }],
+      'single',
+    )
+
+    expect(split).toHaveLength(1)
+    expect(split[0]).toMatchObject({ row: 3, column: 3, rowSpan: 1, columnSpan: 1 })
+    expect(split[0].id).not.toBe('single')
+    expect(split[0].label).toBeUndefined()
   })
 
   it('composes and removes the requested 3x3 corner-based regions', () => {

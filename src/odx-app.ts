@@ -339,13 +339,13 @@ export class OdxApp extends LitElement {
     this.mergeHover = undefined
   }
 
-  private selectionContainsMergedRegion(first: CellCoordinate, second: CellCoordinate): boolean {
+  private selectionContainsComposedRegion(first: CellCoordinate, second: CellCoordinate): boolean {
     const rowStart = Math.min(first.row, second.row)
     const rowEnd = Math.max(first.row, second.row)
     const columnStart = Math.min(first.column, second.column)
     const columnEnd = Math.max(first.column, second.column)
     return this.canvasProject.regions.some((region) => {
-      if (region.rowSpan === 1 && region.columnSpan === 1) return false
+      if (region.rowSpan === 1 && region.columnSpan === 1 && !region.label) return false
       const regionRowEnd = region.row + region.rowSpan - 1
       const regionColumnEnd = region.column + region.columnSpan - 1
       return region.row <= rowEnd && regionRowEnd >= rowStart && region.column <= columnEnd && regionColumnEnd >= columnStart
@@ -354,19 +354,14 @@ export class OdxApp extends LitElement {
 
   private selectMergeCell(cell: CellCoordinate): void {
     const occupyingRegion = this.canvasProject.regions.find((region) => regionContainsCell(region, cell))
-    if (occupyingRegion && (occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1)) return
+    if (occupyingRegion && (occupyingRegion.label || occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1)) return
 
     if (!this.mergeAnchor) {
       this.mergeAnchor = cell
       this.mergeHover = cell
       return
     }
-    if (this.mergeAnchor.row === cell.row && this.mergeAnchor.column === cell.column) {
-      this.mergeAnchor = undefined
-      this.mergeHover = undefined
-      return
-    }
-    if (this.selectionContainsMergedRegion(this.mergeAnchor, cell)) {
+    if (this.selectionContainsComposedRegion(this.mergeAnchor, cell)) {
       this.mergeAnchor = undefined
       this.mergeHover = undefined
       this.showToast('Remove the existing region before drawing across it')
@@ -381,10 +376,10 @@ export class OdxApp extends LitElement {
     }
     const previousIds = new Set(this.canvasProject.regions.map((region) => region.id))
     const mergedRegion = regions.find((region) => !previousIds.has(region.id))
-    const existingMergedRegions = this.canvasProject.regions
-      .filter((region) => region.rowSpan > 1 || region.columnSpan > 1)
+    const existingComposedRegions = this.canvasProject.regions
+      .filter((region) => region.label || region.rowSpan > 1 || region.columnSpan > 1)
       .sort((first, second) => first.row - second.row || first.column - second.column)
-    const usedLabels = new Set(existingMergedRegions.map((region, index) => region.label ?? regionLabel(index)))
+    const usedLabels = new Set(existingComposedRegions.map((region, index) => region.label ?? regionLabel(index)))
     let labelIndex = 0
     while (usedLabels.has(regionLabel(labelIndex))) labelIndex += 1
     const label = regionLabel(labelIndex)
@@ -398,7 +393,7 @@ export class OdxApp extends LitElement {
 
   private splitSelectedRegion(regionId: string): void {
     const region = this.canvasProject.regions.find((item) => item.id === regionId)
-    if (!region || (region.rowSpan === 1 && region.columnSpan === 1)) return
+    if (!region || (region.rowSpan === 1 && region.columnSpan === 1 && !region.label)) return
     this.updateLayoutDraft((project) => ({ ...project, regions: splitRegion(project.regions, regionId) }))
     this.selectedRegionId = ''
     this.mergeAnchor = undefined
@@ -605,21 +600,21 @@ export class OdxApp extends LitElement {
     const definition = region.widget ? getWidgetDefinition(region.widget.type) : undefined
     const compact = region.columnSpan === 1 || region.rowSpan === 1
     const layoutMode = this.editorMode === 'layout'
-    const isMerged = region.rowSpan > 1 || region.columnSpan > 1
-    const mergedRegions = this.canvasProject.regions
-      .filter((item) => item.rowSpan > 1 || item.columnSpan > 1)
+    const isComposed = Boolean(region.label) || region.rowSpan > 1 || region.columnSpan > 1
+    const composedRegions = this.canvasProject.regions
+      .filter((item) => item.label || item.rowSpan > 1 || item.columnSpan > 1)
       .sort((first, second) => first.row - second.row || first.column - second.column)
-    const label = isMerged ? region.label ?? regionLabel(mergedRegions.findIndex((item) => item.id === region.id)) : `${region.column}.${region.row}`
+    const label = isComposed ? region.label ?? regionLabel(composedRegions.findIndex((item) => item.id === region.id)) : `${region.column}.${region.row}`
     return html`
       <section
         class="screen-region ${layoutMode ? 'layout-region' : region.widget ? '' : 'empty'} ${!layoutMode && region.id === this.selectedRegionId ? 'selected' : ''}"
         style=${styleMap({ gridColumn: `${region.column} / span ${region.columnSpan}`, gridRow: `${region.row} / span ${region.rowSpan}` })}
-        aria-label=${layoutMode ? isMerged ? `Region ${label}` : `Grid cell ${label}` : definition ? `${definition.name} region` : 'Empty region'}
+        aria-label=${layoutMode ? isComposed ? `Region ${label}` : `Grid cell ${label}` : definition ? `${definition.name} region` : 'Empty region'}
         @click=${() => { if (!layoutMode) this.selectedRegionId = region.id }}
         @dblclick=${() => { if (layoutMode) this.splitSelectedRegion(region.id) }}
       >
         ${layoutMode
-          ? isMerged
+          ? isComposed
             ? html`<div class="layout-region-copy composed"><strong>${label}</strong><span>${region.columnSpan}×${region.rowSpan} region</span></div>`
             : nothing
           : definition && region.widget
@@ -636,12 +631,12 @@ export class OdxApp extends LitElement {
       column: (index % this.canvasProject.grid.columns) + 1,
     }))
     const selectionEnd = this.mergeHover ?? this.mergeAnchor
-    const selectionInvalid = Boolean(this.mergeAnchor && selectionEnd && this.selectionContainsMergedRegion(this.mergeAnchor, selectionEnd))
+    const selectionInvalid = Boolean(this.mergeAnchor && selectionEnd && this.selectionContainsComposedRegion(this.mergeAnchor, selectionEnd))
     return html`
       <div class="merge-layer active" aria-label="Region composition grid" @pointerleave=${() => { this.mergeHover = undefined }}>
         ${cells.map((cell) => {
           const occupyingRegion = this.canvasProject.regions.find((region) => regionContainsCell(region, cell))
-          const occupied = Boolean(occupyingRegion && (occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1))
+          const occupied = Boolean(occupyingRegion && (occupyingRegion.label || occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1))
           const inSelection = Boolean(this.mergeAnchor && selectionEnd &&
             cell.row >= Math.min(this.mergeAnchor.row, selectionEnd.row) &&
             cell.row <= Math.max(this.mergeAnchor.row, selectionEnd.row) &&

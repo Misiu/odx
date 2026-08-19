@@ -57,7 +57,7 @@ export const mergeRegions = (
     0,
   )
 
-  if (requestedArea !== coveredArea || inside.length < 2) return null
+  if (requestedArea !== coveredArea || inside.length === 0) return null
 
   const preservedWidget = inside.find((region) => region.widget)?.widget
   const insideIds = new Set(inside.map((region) => region.id))
@@ -79,7 +79,19 @@ export const splitRegion = (
   regionId: string,
 ): GridRegion[] => {
   const target = regions.find((region) => region.id === regionId)
-  if (!target || (target.rowSpan === 1 && target.columnSpan === 1)) return regions
+  if (!target || (target.rowSpan === 1 && target.columnSpan === 1 && !target.label)) return regions
+
+  if (target.rowSpan === 1 && target.columnSpan === 1) {
+    return regions.map((region) => region.id === regionId
+      ? {
+          id: createId(),
+          row: region.row,
+          column: region.column,
+          rowSpan: 1,
+          columnSpan: 1,
+        }
+      : region)
+  }
 
   const cells: GridRegion[] = []
   for (let row = target.row; row < target.row + target.rowSpan; row += 1) {
