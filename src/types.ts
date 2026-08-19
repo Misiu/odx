@@ -40,6 +40,7 @@ export interface WidgetInstance {
 
 export interface GridRegion {
   id: string
+  label?: string
   row: number
   column: number
   rowSpan: number

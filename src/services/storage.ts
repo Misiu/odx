@@ -5,6 +5,22 @@ import { getDisplayProfile } from '../data/display-profiles'
 const STORAGE_KEY = 'odx.projects.v1'
 const DEFAULT_DISPLAY = 'solum-newton-pro-5-8'
 
+const labelRegions = (regions: ScreenProject['regions']): ScreenProject['regions'] => {
+  const merged = regions
+    .filter((region) => region.rowSpan > 1 || region.columnSpan > 1)
+    .sort((first, second) => first.row - second.row || first.column - second.column)
+  const used = new Set(merged.flatMap((region) => region.label ? [region.label] : []))
+  let labelCode = 65
+  return regions.map((region) => {
+    if (region.rowSpan === 1 && region.columnSpan === 1 || region.label) return region
+    while (used.has(String.fromCharCode(labelCode))) labelCode += 1
+    const label = String.fromCharCode(labelCode)
+    used.add(label)
+    labelCode += 1
+    return { ...region, label }
+  })
+}
+
 export const createProject = (name = 'Kitchen display', includeDemo = false): ScreenProject => {
   const display = getDisplayProfile(DEFAULT_DISPLAY)
   const orientation = 'landscape' as const
@@ -21,6 +37,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
     regions: includeDemo ? [
       {
         id: createId(),
+        label: 'A',
         row: 1,
         column: 1,
         rowSpan: 1,
@@ -39,6 +56,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
       },
       {
         id: createId(),
+        label: 'B',
         row: 1,
         column: 3,
         rowSpan: 1,
@@ -57,6 +75,7 @@ export const createProject = (name = 'Kitchen display', includeDemo = false): Sc
       },
       {
         id: createId(),
+        label: 'C',
         row: 2,
         column: 1,
         rowSpan: 1,
@@ -107,16 +126,16 @@ export const loadState = (): PersistedState => {
       if (
         project.grid.columns === expectedGrid.columns &&
         project.grid.rows === expectedGrid.rows
-      ) return project
+      ) return { ...project, regions: labelRegions(project.regions) }
 
       const widgets = project.regions.flatMap((region) => region.widget ? [region.widget] : [])
       return {
         ...project,
         grid: expectedGrid,
-        regions: createRegions(expectedGrid).map((region, index) => ({
+        regions: labelRegions(createRegions(expectedGrid).map((region, index) => ({
           ...region,
           widget: widgets[index],
-        })),
+        }))),
       }
     })
     return { ...parsed, projects }

@@ -49,6 +49,27 @@ describe('layout service', () => {
     expect(split.every((region) => region.rowSpan === 1 && region.columnSpan === 1)).toBe(true)
   })
 
+  it('composes and removes the requested 3x3 corner-based regions', () => {
+    const cells = createRegions({ columns: 3, rows: 3 })
+    const withRegionA = mergeRegions(cells, { row: 1, column: 1 }, { row: 2, column: 2 })
+    expect(withRegionA).not.toBeNull()
+
+    const withRegionB = mergeRegions(withRegionA!, { row: 1, column: 3 }, { row: 3, column: 3 })
+    expect(withRegionB).not.toBeNull()
+    expect(withRegionB).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, column: 1, rowSpan: 2, columnSpan: 2 }),
+      expect.objectContaining({ row: 1, column: 3, rowSpan: 3, columnSpan: 1 }),
+    ]))
+
+    const rightRegion = withRegionB!.find((region) => region.column === 3 && region.rowSpan === 3)
+    const restored = splitRegion(withRegionB!, rightRegion!.id)
+    expect(restored).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, column: 3, rowSpan: 1, columnSpan: 1 }),
+      expect.objectContaining({ row: 2, column: 3, rowSpan: 1, columnSpan: 1 }),
+      expect.objectContaining({ row: 3, column: 3, rowSpan: 1, columnSpan: 1 }),
+    ]))
+  })
+
   it('rotates region geometry when orientation transposes the grid', () => {
     const rotated = rotateRegions(
       [{ id: 'wide', row: 1, column: 1, rowSpan: 1, columnSpan: 3 }],

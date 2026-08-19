@@ -689,21 +689,53 @@ export const appStyles = css`
 
   .merge-layer.active {
     pointer-events: auto;
-    background: color-mix(in srgb, var(--screen-paper) 68%, transparent);
   }
 
   .merge-cell {
     appearance: none;
-    border: max(1px, 0.15cqw) solid var(--screen-accent);
-    background: color-mix(in srgb, var(--screen-accent) 9%, transparent);
+    border: max(1px, 0.15cqw) dashed color-mix(in srgb, var(--screen-ink) 50%, transparent);
+    background: color-mix(in srgb, var(--screen-paper) 76%, transparent);
     cursor: crosshair;
-    color: var(--screen-ink);
+    color: var(--screen-muted);
     font: 700 clamp(7px, 1.5cqw, 12px)/1 ui-monospace, Consolas, monospace;
+    transition: background 90ms ease, border-color 90ms ease;
+  }
+
+  .merge-cell:hover,
+  .merge-cell:focus-visible {
+    border-style: solid;
+    border-color: var(--screen-accent);
+    background: color-mix(in srgb, var(--screen-accent) 12%, var(--screen-paper));
+    outline: none;
+  }
+
+  .merge-cell.preview {
+    border-style: solid;
+    border-color: var(--screen-accent);
+    background: color-mix(in srgb, var(--screen-accent) 22%, var(--screen-paper));
+    color: var(--screen-ink);
+  }
+
+  .merge-cell.preview.invalid {
+    border-color: var(--odx-danger);
+    background: color-mix(in srgb, var(--odx-danger) 20%, var(--screen-paper));
   }
 
   .merge-cell.anchor {
     color: var(--screen-paper);
     background: var(--screen-accent);
+  }
+
+  .merge-cell.occupied {
+    border: 0;
+    background: transparent;
+    cursor: zoom-out;
+  }
+
+  .merge-cell.occupied:hover,
+  .merge-cell.occupied:focus-visible {
+    background: transparent;
+    outline: none;
   }
 
   .inspector {

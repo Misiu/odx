@@ -8,7 +8,6 @@ import {
   mdiDeleteOutline,
   mdiDownload,
   mdiExportVariant,
-  mdiGridLarge,
   mdiImageOutline,
   mdiPlus,
   mdiRenameOutline,
@@ -29,6 +28,7 @@ import {
   createRegions,
   gridForOrientation,
   mergeRegions,
+  regionContainsCell,
   rotateRegions,
   splitRegion,
 } from './services/layout'
@@ -70,14 +70,25 @@ const downloadDataUrl = (dataUrl: string, filename: string): void => {
   anchor.click()
 }
 
+const regionLabel = (index: number): string => {
+  let value = index + 1
+  let label = ''
+  while (value > 0) {
+    value -= 1
+    label = String.fromCharCode(65 + (value % 26)) + label
+    value = Math.floor(value / 26)
+  }
+  return label
+}
+
 type EditorMode = 'layout' | 'widgets'
 
 @customElement('odx-app')
 export class OdxApp extends LitElement {
   @state() private store: PersistedState = loadState()
   @state() private selectedRegionId = ''
-  @state() private mergeMode = false
   @state() private mergeAnchor?: CellCoordinate
+  @state() private mergeHover?: CellCoordinate
   @state() private toastMessage = ''
   @state() private exporting = false
   @state() private renameDraft = ''
@@ -135,15 +146,15 @@ export class OdxApp extends LitElement {
     this.layoutDraft = structuredClone(this.project)
     this.editorMode = 'layout'
     this.selectedRegionId = ''
-    this.mergeMode = false
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
   }
 
   private cancelLayoutEditor(): void {
     this.layoutDraft = undefined
     this.editorMode = 'widgets'
-    this.mergeMode = false
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
   }
 
   private applyLayoutEditor(): void {
@@ -152,8 +163,8 @@ export class OdxApp extends LitElement {
     this.updateProject(() => draft)
     this.layoutDraft = undefined
     this.editorMode = 'widgets'
-    this.mergeMode = false
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
     this.selectedRegionId = ''
     this.showToast('Device and layout updated')
   }
@@ -168,8 +179,8 @@ export class OdxApp extends LitElement {
 
   private selectProject(projectId: string): void {
     this.selectedRegionId = ''
-    this.mergeMode = false
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
     this.layoutDraft = undefined
     this.editorMode = 'widgets'
     this.persist({ ...this.store, activeProjectId: projectId })
@@ -234,6 +245,7 @@ export class OdxApp extends LitElement {
     }))
     this.selectedRegionId = ''
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
     if (!sameGrid) this.showToast('Grid adapted to the selected display')
   }
 
@@ -249,31 +261,64 @@ export class OdxApp extends LitElement {
     this.updateLayoutDraft((project) => ({ ...project, orientation, grid, regions }))
     this.selectedRegionId = ''
     this.mergeAnchor = undefined
+    this.mergeHover = undefined
   }
 
-  private toggleMergeMode(): void {
-    this.mergeMode = !this.mergeMode
-    this.mergeAnchor = undefined
+  private selectionContainsMergedRegion(first: CellCoordinate, second: CellCoordinate): boolean {
+    const rowStart = Math.min(first.row, second.row)
+    const rowEnd = Math.max(first.row, second.row)
+    const columnStart = Math.min(first.column, second.column)
+    const columnEnd = Math.max(first.column, second.column)
+    return this.canvasProject.regions.some((region) => {
+      if (region.rowSpan === 1 && region.columnSpan === 1) return false
+      const regionRowEnd = region.row + region.rowSpan - 1
+      const regionColumnEnd = region.column + region.columnSpan - 1
+      return region.row <= rowEnd && regionRowEnd >= rowStart && region.column <= columnEnd && regionColumnEnd >= columnStart
+    })
   }
 
   private selectMergeCell(cell: CellCoordinate): void {
+    const occupyingRegion = this.canvasProject.regions.find((region) => regionContainsCell(region, cell))
+    if (occupyingRegion && (occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1)) return
+
     if (!this.mergeAnchor) {
       this.mergeAnchor = cell
+      this.mergeHover = cell
+      return
+    }
+    if (this.mergeAnchor.row === cell.row && this.mergeAnchor.column === cell.column) {
+      this.mergeAnchor = undefined
+      this.mergeHover = undefined
+      return
+    }
+    if (this.selectionContainsMergedRegion(this.mergeAnchor, cell)) {
+      this.mergeAnchor = undefined
+      this.mergeHover = undefined
+      this.showToast('Remove the existing region before drawing across it')
       return
     }
     const regions = mergeRegions(this.canvasProject.regions, this.mergeAnchor, cell)
     if (!regions) {
       this.mergeAnchor = undefined
+      this.mergeHover = undefined
       this.showToast('The selected rectangle crosses an existing merged region')
       return
     }
     const previousIds = new Set(this.canvasProject.regions.map((region) => region.id))
     const mergedRegion = regions.find((region) => !previousIds.has(region.id))
-    this.updateLayoutDraft((project) => ({ ...project, regions }))
+    const existingMergedRegions = this.canvasProject.regions
+      .filter((region) => region.rowSpan > 1 || region.columnSpan > 1)
+      .sort((first, second) => first.row - second.row || first.column - second.column)
+    const usedLabels = new Set(existingMergedRegions.map((region, index) => region.label ?? regionLabel(index)))
+    let labelIndex = 0
+    while (usedLabels.has(regionLabel(labelIndex))) labelIndex += 1
+    const label = regionLabel(labelIndex)
+    const labeledRegions = regions.map((region) => region.id === mergedRegion?.id ? { ...region, label } : region)
+    this.updateLayoutDraft((project) => ({ ...project, regions: labeledRegions }))
     this.selectedRegionId = mergedRegion?.id ?? ''
     this.mergeAnchor = undefined
-    this.mergeMode = false
-    this.showToast('Regions merged')
+    this.mergeHover = undefined
+    this.showToast(`Region ${label} created`)
   }
 
   private splitSelectedRegion(regionId: string): void {
@@ -281,7 +326,9 @@ export class OdxApp extends LitElement {
     if (!region || (region.rowSpan === 1 && region.columnSpan === 1)) return
     this.updateLayoutDraft((project) => ({ ...project, regions: splitRegion(project.regions, regionId) }))
     this.selectedRegionId = ''
-    this.showToast('Region split')
+    this.mergeAnchor = undefined
+    this.mergeHover = undefined
+    this.showToast('Region removed')
   }
 
   private assignWidget(widgetId: string): void {
@@ -435,9 +482,6 @@ export class OdxApp extends LitElement {
           </div>
         </div>
         <span class="grid-badge">GRID ${project.grid.columns}×${project.grid.rows}</span>
-        <wa-button size="s" variant=${this.mergeMode ? 'brand' : 'neutral'} appearance="outlined" @click=${this.toggleMergeMode}>
-          ${renderIcon(mdiGridLarge)} ${this.mergeMode ? 'Cancel merge' : 'Merge regions'}
-        </wa-button>
       </div>
     `
   }
@@ -460,19 +504,23 @@ export class OdxApp extends LitElement {
     const definition = region.widget ? getWidgetDefinition(region.widget.type) : undefined
     const compact = region.columnSpan === 1 || region.rowSpan === 1
     const layoutMode = this.editorMode === 'layout'
-    const regionNumber = [...this.canvasProject.regions]
+    const isMerged = region.rowSpan > 1 || region.columnSpan > 1
+    const mergedRegions = this.canvasProject.regions
+      .filter((item) => item.rowSpan > 1 || item.columnSpan > 1)
       .sort((first, second) => first.row - second.row || first.column - second.column)
-      .findIndex((item) => item.id === region.id) + 1
+    const label = isMerged ? region.label ?? regionLabel(mergedRegions.findIndex((item) => item.id === region.id)) : `${region.column}.${region.row}`
     return html`
       <section
         class="screen-region ${layoutMode ? 'layout-region' : region.widget ? '' : 'empty'} ${!layoutMode && region.id === this.selectedRegionId ? 'selected' : ''}"
         style=${styleMap({ gridColumn: `${region.column} / span ${region.columnSpan}`, gridRow: `${region.row} / span ${region.rowSpan}` })}
-        aria-label=${layoutMode ? `Layout region ${regionNumber}` : definition ? `${definition.name} region` : 'Empty region'}
+        aria-label=${layoutMode ? isMerged ? `Region ${label}` : `Grid cell ${label}` : definition ? `${definition.name} region` : 'Empty region'}
         @click=${() => { if (!layoutMode) this.selectedRegionId = region.id }}
         @dblclick=${() => { if (layoutMode) this.splitSelectedRegion(region.id) }}
       >
         ${layoutMode
-          ? html`<div class="layout-region-copy"><strong>${regionNumber}</strong><span>${region.columnSpan}×${region.rowSpan}</span></div>`
+          ? isMerged
+            ? html`<div class="layout-region-copy composed"><strong>${label}</strong><span>${region.columnSpan}×${region.rowSpan} region</span></div>`
+            : nothing
           : definition && region.widget
             ? definition.render(region.widget.config, { compact, palette: this.project.palette })
             : html`<div class="empty-region-copy"><strong>Add widget</strong><span>${region.columnSpan}×${region.rowSpan} region</span></div>`}
@@ -481,20 +529,37 @@ export class OdxApp extends LitElement {
   }
 
   private renderMergeLayer(): TemplateResult {
-    if (!this.mergeMode) return html``
+    if (this.editorMode !== 'layout') return html``
     const cells = Array.from({ length: this.canvasProject.grid.columns * this.canvasProject.grid.rows }, (_, index) => ({
       row: Math.floor(index / this.canvasProject.grid.columns) + 1,
       column: (index % this.canvasProject.grid.columns) + 1,
     }))
+    const selectionEnd = this.mergeHover ?? this.mergeAnchor
+    const selectionInvalid = Boolean(this.mergeAnchor && selectionEnd && this.selectionContainsMergedRegion(this.mergeAnchor, selectionEnd))
     return html`
-      <div class="merge-layer active" aria-label="Merge grid">
-        ${cells.map((cell) => html`
-          <button
-            class="merge-cell ${this.mergeAnchor?.row === cell.row && this.mergeAnchor?.column === cell.column ? 'anchor' : ''}"
-            aria-label="Grid cell row ${cell.row}, column ${cell.column}"
-            @click=${() => this.selectMergeCell(cell)}
-          >${cell.column},${cell.row}</button>
-        `)}
+      <div class="merge-layer active" aria-label="Region composition grid" @pointerleave=${() => { this.mergeHover = undefined }}>
+        ${cells.map((cell) => {
+          const occupyingRegion = this.canvasProject.regions.find((region) => regionContainsCell(region, cell))
+          const occupied = Boolean(occupyingRegion && (occupyingRegion.rowSpan > 1 || occupyingRegion.columnSpan > 1))
+          const inSelection = Boolean(this.mergeAnchor && selectionEnd &&
+            cell.row >= Math.min(this.mergeAnchor.row, selectionEnd.row) &&
+            cell.row <= Math.max(this.mergeAnchor.row, selectionEnd.row) &&
+            cell.column >= Math.min(this.mergeAnchor.column, selectionEnd.column) &&
+            cell.column <= Math.max(this.mergeAnchor.column, selectionEnd.column))
+          return html`
+            <button
+              class="merge-cell ${occupied ? 'occupied' : ''} ${inSelection ? 'preview' : ''} ${selectionInvalid && inSelection ? 'invalid' : ''} ${this.mergeAnchor?.row === cell.row && this.mergeAnchor?.column === cell.column ? 'anchor' : ''}"
+              aria-label=${occupied ? `Existing region at column ${cell.column}, row ${cell.row}; double-click to remove` : `Grid cell column ${cell.column}, row ${cell.row}`}
+              @pointerenter=${() => { if (this.mergeAnchor) this.mergeHover = cell }}
+              @click=${() => this.selectMergeCell(cell)}
+              @dblclick=${(event: MouseEvent) => {
+                event.preventDefault()
+                event.stopPropagation()
+                if (occupied && occupyingRegion) this.splitSelectedRegion(occupyingRegion.id)
+              }}
+            >${occupied ? nothing : `${cell.column}.${cell.row}`}</button>
+          `
+        })}
       </div>
     `
   }
@@ -521,9 +586,9 @@ export class OdxApp extends LitElement {
             </div>
           </div>
           ${this.editorMode === 'layout'
-            ? this.mergeMode
-              ? html`<div class="merge-help">${this.mergeAnchor ? html`<strong>First corner selected.</strong> Choose the opposite corner.` : html`Choose the first corner, then the opposite corner of a rectangle.`}</div>`
-              : html`<div class="merge-help"><strong>Layout mode:</strong> Merge regions or double-click a merged region to split it.</div>`
+            ? this.mergeAnchor
+              ? html`<div class="merge-help"><strong>First corner selected.</strong> Move across the grid and click the opposite corner.</div>`
+              : html`<div class="merge-help"><strong>Draw a region:</strong> Click two opposite corners. Double-click a region to remove it.</div>`
             : html`<div class="merge-help"><strong>Widget mode:</strong> Select a region to configure its content.</div>`}
         </div>
       </main>
@@ -589,9 +654,9 @@ export class OdxApp extends LitElement {
           <div><dt>Regions</dt><dd>${project.regions.length}</dd></div>
         </dl>
         <ol class="layout-instructions">
-          <li>Select <strong>Merge regions</strong>.</li>
-          <li>Choose opposite corners of a rectangle.</li>
-          <li>Double-click a merged region to split it.</li>
+          <li>Click the first corner of a new region.</li>
+          <li>Move across the grid and click the opposite corner.</li>
+          <li>Double-click an existing region to remove it.</li>
         </ol>
         <div class="layout-guide-actions">
           <wa-button appearance="plain" @click=${this.cancelLayoutEditor}>Cancel</wa-button>

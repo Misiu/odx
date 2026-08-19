@@ -1,6 +1,6 @@
 # OpenDisplay Studio
 
-OpenDisplay Studio is a browser-based proof of concept for composing e-paper layouts. It adapts its grid to the selected display, lets users merge rectangular regions, assigns configurable widgets, saves projects locally, and exports device-sized PNG or JPG images.
+OpenDisplay Studio is a browser-based proof of concept for composing e-paper layouts. It adapts its grid to the selected display, lets users draw rectangular regions, assigns configurable widgets, saves projects locally, and exports device-sized PNG or JPG images.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ Create a production build with `npm run build`. The generated `dist/` directory 
 - OpenDisplay reference hardware profiles
 - Device-aware landscape and portrait grids
 - Two-step workflow separating device/layout composition from widget configuration
-- Rectangular region merging and double-click splitting
+- Two-corner region drawing with live hover preview and double-click removal
 - Sensor history, weather, calendar, entity value, and text note widgets
 - Widget-specific configuration with mock Home Assistant entities
 - Browser-local persistence plus project JSON import/export
