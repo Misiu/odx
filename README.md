@@ -14,14 +14,15 @@ Create a production build with `npm run build`. The generated `dist/` directory 
 ## Current capabilities
 
 - SOLUM Newton Pro display profiles from 1.6 to 12.2 inches, including freezer variants
-- OpenDisplay reference hardware profiles
+- Seeed reTerminal, XIAO, and DIY OpenDisplay hardware profiles
+- Custom Seeed EN04, EN05, EE04, and EE05 driver boards with connector-compatible verified panel presets
 - Device-aware landscape and portrait grids
 - Two-step workflow separating device/layout composition from widget configuration
 - Two-corner region drawing with live hover preview and double-click removal
 - Sensor history, weather, calendar, entity value, and text note widgets
 - Widget-specific configuration with mock Home Assistant entities
 - Browser-local persistence plus project JSON import/export
-- Device-resolution PNG and JPG export
+- Native-resolution PNG and JPG export with dimension and edge-completeness validation
 - Home Assistant-compatible CSS theme variables and WebAwesome controls
 
 ## Editing workflow
@@ -54,6 +55,6 @@ npm run build
 
 ## Data sources and next integration steps
 
-Display profiles are based on the [SOLUM Newton Pro lineup](https://www.solum-group.com/esl-n-iot/product-lineup/professional-esl/newton-pro) and [OpenDisplay hardware guidance](https://opendisplay.org/what-hardware-to-buy.html). The layout and rendering approach is informed by the [TRMNL Framework](https://trmnl.com/framework/docs/3.2), while keeping this POC self-contained.
+Display profiles are based on the [SOLUM Newton Pro lineup](https://www.solum-group.com/esl-n-iot/product-lineup/professional-esl/newton-pro), [OpenDisplay hardware guidance](https://opendisplay.org/what-hardware-to-buy.html), and verified panel presets from the [OpenDisplay Toolbox](https://opendisplay.org/firmware/toolbox/index.html?driver=en04). The layout and rendering approach is informed by the [TRMNL Framework](https://trmnl.com/framework/docs/3.2), while keeping this POC self-contained.
 
 The mock entity providers are intended to be replaced by a Home Assistant WebSocket/API adapter. A later delivery adapter can upload the rendered image through the OpenDisplay API without changing widget definitions.

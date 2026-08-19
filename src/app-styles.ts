@@ -324,6 +324,17 @@ export const appStyles = css`
     outline: none;
   }
 
+  .rail-action:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .rail-action:disabled:hover,
+  .rail-action:disabled:focus-visible {
+    border-color: var(--odx-line);
+    color: var(--odx-muted);
+  }
+
   .rail-action.danger:hover,
   .rail-action.danger:focus-visible {
     border-color: var(--odx-danger);
@@ -395,6 +406,16 @@ export const appStyles = css`
   .control.grow {
     min-width: 240px;
     flex: 1 1 300px;
+  }
+
+  .custom-control {
+    min-width: 210px;
+    flex: 1 1 220px;
+  }
+
+  .panel-control {
+    min-width: 260px;
+    flex-basis: 300px;
   }
 
   .control label,
@@ -1118,6 +1139,11 @@ export const appStyles = css`
     }
 
     .control.grow {
+      min-width: 100%;
+    }
+
+    .custom-control,
+    .panel-control {
       min-width: 100%;
     }
 

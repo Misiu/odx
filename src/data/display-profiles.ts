@@ -1,4 +1,5 @@
 import type { DisplayProfile, GridSize, Orientation, PaletteId } from '../types'
+import { CUSTOM_PANEL_PROFILES } from './custom-hardware'
 
 export const PALETTE_LABELS: Record<PaletteId, string> = {
   bw: 'Monochrome · black / white',
@@ -12,6 +13,33 @@ export const PALETTE_LABELS: Record<PaletteId, string> = {
 
 const SOLUM_SOURCE =
   'https://www.solum-group.com/esl-n-iot/product-lineup/professional-esl/newton-pro'
+const OPENDISPLAY_HARDWARE_SOURCE = 'https://opendisplay.org/what-hardware-to-buy.html'
+
+const readyHardware = (
+  id: string,
+  manufacturer: string,
+  name: string,
+  diagonal: number,
+  nativeWidth: number,
+  nativeHeight: number,
+  palettes: PaletteId[],
+  defaultPalette: PaletteId,
+  landscape: GridSize,
+  portrait: GridSize,
+): DisplayProfile => ({
+  id,
+  manufacturer,
+  family: 'OpenDisplay',
+  name,
+  diagonal,
+  nativeWidth,
+  nativeHeight,
+  nativeOrientation: nativeWidth >= nativeHeight ? 'landscape' : 'portrait',
+  palettes,
+  defaultPalette,
+  grid: { landscape, portrait },
+  source: OPENDISPLAY_HARDWARE_SOURCE,
+})
 
 const solum = (
   id: string,
@@ -62,6 +90,7 @@ export const DISPLAY_PROFILES: DisplayProfile[] = [
   solum('solum-newton-pro-9-7', 'Newton Pro 9.7″', 9.7, 672, 960, { columns: 4, rows: 3 }, { columns: 3, rows: 4 }),
   solum('solum-newton-pro-11-6', 'Newton Pro 11.6″', 11.6, 640, 960, { columns: 4, rows: 3 }, { columns: 3, rows: 4 }),
   solum('solum-newton-pro-12-2', 'Newton Pro 12.2″', 12.2, 768, 960, { columns: 4, rows: 4 }, { columns: 4, rows: 4 }),
+  readyHardware('opendisplay-e1001', 'Seeed Studio', 'reTerminal E1001 7.5″', 7.5, 800, 480, ['bw'], 'bw', { columns: 3, rows: 3 }, { columns: 3, rows: 3 }),
   {
     id: 'opendisplay-reterminal-sticky',
     manufacturer: 'Seeed Studio',
@@ -77,6 +106,7 @@ export const DISPLAY_PROFILES: DisplayProfile[] = [
       landscape: { columns: 3, rows: 2 },
       portrait: { columns: 2, rows: 3 },
     },
+    source: OPENDISPLAY_HARDWARE_SOURCE,
   },
   {
     id: 'opendisplay-e1002',
@@ -93,6 +123,7 @@ export const DISPLAY_PROFILES: DisplayProfile[] = [
       landscape: { columns: 3, rows: 3 },
       portrait: { columns: 3, rows: 3 },
     },
+    source: OPENDISPLAY_HARDWARE_SOURCE,
   },
   {
     id: 'opendisplay-e1003',
@@ -109,7 +140,15 @@ export const DISPLAY_PROFILES: DisplayProfile[] = [
       landscape: { columns: 4, rows: 3 },
       portrait: { columns: 3, rows: 4 },
     },
+    source: OPENDISPLAY_HARDWARE_SOURCE,
   },
+  readyHardware('opendisplay-e1004', 'Seeed Studio', 'reTerminal E1004 13.3″ Spectra 6', 13.3, 1200, 1600, ['bw', 'spectra6'], 'spectra6', { columns: 4, rows: 3 }, { columns: 3, rows: 4 }),
+  readyHardware('opendisplay-xiao-7-5', 'Seeed Studio', 'XIAO 7.5″ ePaper kit', 7.5, 800, 480, ['bw'], 'bw', { columns: 3, rows: 3 }, { columns: 3, rows: 3 }),
+  readyHardware('opendisplay-seeed-7-5-diy', 'Seeed Studio', '7.5″ DIY · EE04', 7.5, 800, 480, ['bw'], 'bw', { columns: 3, rows: 3 }, { columns: 3, rows: 3 }),
+  readyHardware('opendisplay-4-26-mono-kit', 'OpenDisplay', 'OpenDisplay 4.26″ Mono Kit', 4.26, 800, 480, ['bw'], 'bw', { columns: 2, rows: 2 }, { columns: 2, rows: 2 }),
+  readyHardware('opendisplay-7-3-color-kit', 'OpenDisplay', 'OpenDisplay 7.3″ Color Kit', 7.3, 800, 480, ['bw', 'spectra6'], 'spectra6', { columns: 3, rows: 3 }, { columns: 3, rows: 3 }),
+  readyHardware('opendisplay-waveshare-photopainter', 'Waveshare', 'ESP32-S3 PhotoPainter 7.3″', 7.3, 800, 480, ['bw', 'spectra6'], 'spectra6', { columns: 3, rows: 3 }, { columns: 3, rows: 3 }),
+  ...CUSTOM_PANEL_PROFILES,
 ]
 
 export const getDisplayProfile = (id: string): DisplayProfile =>

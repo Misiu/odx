@@ -4,6 +4,12 @@ import {
   getDisplayProfile,
   getPixelSize,
 } from './display-profiles'
+import {
+  CUSTOM_DRIVERS,
+  DEFAULT_CUSTOM_DRIVER_ID,
+  DEFAULT_CUSTOM_PANEL_ID,
+  isPanelCompatible,
+} from './custom-hardware'
 
 describe('display profiles', () => {
   it('contains the SOLUM Newton Pro lineup used by the POC', () => {
@@ -38,5 +44,41 @@ describe('display profiles', () => {
 
   it('falls back to the default Newton Pro 5.8 profile', () => {
     expect(getDisplayProfile('missing').id).toBe('solum-newton-pro-5-8')
+  })
+
+  it('includes the supported Seeed ready-to-use devices', () => {
+    const seeedIds = DISPLAY_PROFILES
+      .filter((profile) => profile.manufacturer === 'Seeed Studio')
+      .map((profile) => profile.id)
+
+    expect(seeedIds).toEqual(expect.arrayContaining([
+      'opendisplay-reterminal-sticky',
+      'opendisplay-e1001',
+      'opendisplay-e1002',
+      'opendisplay-e1003',
+      'opendisplay-e1004',
+      'opendisplay-xiao-7-5',
+      'opendisplay-seeed-7-5-diy',
+    ]))
+  })
+
+  it('defaults custom hardware to EN04 with the 7.3-inch Spectra 6 panel', () => {
+    const driver = CUSTOM_DRIVERS.find((item) => item.id === DEFAULT_CUSTOM_DRIVER_ID)
+    const panel = getDisplayProfile(DEFAULT_CUSTOM_PANEL_ID)
+
+    expect(driver?.name).toContain('EN04')
+    expect(panel.name).toContain('7.3″ Spectra 6')
+    expect(panel.defaultPalette).toBe('spectra6')
+    expect(getPixelSize(panel, 'landscape')).toEqual({ width: 800, height: 480 })
+    expect(panel.grid.landscape).toEqual({ columns: 3, rows: 3 })
+  })
+
+  it('filters verified panels by the driver connector', () => {
+    const en04 = CUSTOM_DRIVERS.find((item) => item.id === 'en04')
+    const en05 = CUSTOM_DRIVERS.find((item) => item.id === 'en05')
+    const spectraPanel = getDisplayProfile(DEFAULT_CUSTOM_PANEL_ID)
+
+    expect(en04 && isPanelCompatible(en04, spectraPanel)).toBe(true)
+    expect(en05 && isPanelCompatible(en05, spectraPanel)).toBe(false)
   })
 })

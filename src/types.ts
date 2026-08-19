@@ -30,6 +30,15 @@ export interface DisplayProfile {
   grid: Record<Orientation, GridSize>
   freezer?: boolean
   source?: string
+  connectorPins?: number[]
+  toolboxId?: string
+}
+
+export interface CustomDriverProfile {
+  id: string
+  name: string
+  connectorPins: number[]
+  source: string
 }
 
 export interface WidgetInstance {
@@ -53,6 +62,7 @@ export interface ScreenProject {
   schemaVersion: 1
   name: string
   displayId: string
+  driverId?: string
   orientation: Orientation
   palette: PaletteId
   grid: GridSize

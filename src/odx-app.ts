@@ -1,7 +1,6 @@
 import { LitElement, html, nothing, type TemplateResult } from 'lit'
 import { customElement, query, state } from 'lit/decorators.js'
 import { styleMap } from 'lit/directives/style-map.js'
-import { toJpeg, toPng } from 'html-to-image'
 import {
   mdiCheck,
   mdiContentCopy,
@@ -17,6 +16,13 @@ import '@home-assistant/webawesome/dist/components/button/button.js'
 import '@home-assistant/webawesome/dist/styles/webawesome.css'
 import '@home-assistant/webawesome/dist/styles/themes/default.css'
 import { appStyles } from './app-styles'
+import {
+  CUSTOM_DRIVERS,
+  CUSTOM_PANEL_PROFILES,
+  DEFAULT_CUSTOM_DRIVER_ID,
+  DEFAULT_CUSTOM_PANEL_ID,
+  isPanelCompatible,
+} from './data/custom-hardware'
 import {
   DISPLAY_PROFILES,
   PALETTE_LABELS,
@@ -38,6 +44,7 @@ import {
   loadState,
   saveState,
 } from './services/storage'
+import { renderDeviceImage, type ImageExportFormat } from './services/image-export'
 import type {
   CellCoordinate,
   GridRegion,
@@ -117,6 +124,12 @@ export class OdxApp extends LitElement {
 
   private get canvasDisplay() {
     return getDisplayProfile(this.canvasProject.displayId)
+  }
+
+  private get canvasDriver() {
+    if (this.canvasDisplay.family !== 'Custom') return undefined
+    return CUSTOM_DRIVERS.find((driver) => driver.id === this.canvasProject.driverId) ??
+      CUSTOM_DRIVERS.find((driver) => driver.id === DEFAULT_CUSTOM_DRIVER_ID)
   }
 
   private get selectedRegion(): GridRegion | undefined {
@@ -226,8 +239,7 @@ export class OdxApp extends LitElement {
     this.showToast('Name updated')
   }
 
-  private changeDisplay(event: Event): void {
-    const displayId = (event.currentTarget as HTMLSelectElement).value
+  private applyDisplayProfile(displayId: string, driverId?: string): void {
     const profile = getDisplayProfile(displayId)
     const grid = gridForOrientation(profile, this.canvasProject.orientation)
     const sameGrid = grid.columns === this.canvasProject.grid.columns && grid.rows === this.canvasProject.grid.rows
@@ -239,6 +251,7 @@ export class OdxApp extends LitElement {
     this.updateLayoutDraft((project) => ({
       ...project,
       displayId,
+      driverId,
       palette: profile.palettes.includes(project.palette) ? project.palette : profile.defaultPalette,
       grid,
       regions,
@@ -247,6 +260,31 @@ export class OdxApp extends LitElement {
     this.mergeAnchor = undefined
     this.mergeHover = undefined
     if (!sameGrid) this.showToast('Grid adapted to the selected display')
+  }
+
+  private changeDisplay(event: Event): void {
+    const displayId = (event.currentTarget as HTMLSelectElement).value
+    if (displayId === 'custom') {
+      this.applyDisplayProfile(DEFAULT_CUSTOM_PANEL_ID, DEFAULT_CUSTOM_DRIVER_ID)
+      return
+    }
+    this.applyDisplayProfile(displayId)
+  }
+
+  private changeCustomDriver(event: Event): void {
+    const driverId = (event.currentTarget as HTMLSelectElement).value
+    const driver = CUSTOM_DRIVERS.find((item) => item.id === driverId)
+    if (!driver) return
+    if (this.canvasDisplay.family === 'Custom' && isPanelCompatible(driver, this.canvasDisplay)) {
+      this.updateLayoutDraft((project) => ({ ...project, driverId }))
+      return
+    }
+    const firstCompatiblePanel = CUSTOM_PANEL_PROFILES.find((panel) => isPanelCompatible(driver, panel))
+    if (firstCompatiblePanel) this.applyDisplayProfile(firstCompatiblePanel.id, driverId)
+  }
+
+  private changeCustomPanel(event: Event): void {
+    this.applyDisplayProfile((event.currentTarget as HTMLSelectElement).value, this.canvasDriver?.id)
   }
 
   private changePalette(event: Event): void {
@@ -369,29 +407,20 @@ export class OdxApp extends LitElement {
     }))
   }
 
-  private async exportImage(format: 'png' | 'jpeg'): Promise<void> {
+  private async exportImage(format: ImageExportFormat): Promise<void> {
     if (!this.displayScreen || this.exporting) return
     this.exporting = true
     await this.updateComplete
     const { width, height } = getPixelSize(this.display, this.project.orientation)
-    const options = {
-      cacheBust: true,
-      pixelRatio: 1,
-      canvasWidth: width,
-      canvasHeight: height,
-      width,
-      height,
-      style: { width: `${width}px`, height: `${height}px` },
-    }
     try {
-      const dataUrl = format === 'png'
-        ? await toPng(this.displayScreen, options)
-        : await toJpeg(this.displayScreen, { ...options, quality: 0.94 })
+      const dataUrl = await renderDeviceImage(this.displayScreen, { width, height }, format)
       const slug = this.project.name.toLowerCase().replace(/[^a-z0-9]+/gi, '-')
       downloadDataUrl(dataUrl, `${slug}.${format === 'jpeg' ? 'jpg' : 'png'}`)
       this.showToast(`${format === 'jpeg' ? 'JPG' : 'PNG'} exported at ${width}×${height}`)
-    } catch {
-      this.showToast('Image export failed')
+    } catch (error) {
+      const detail = error instanceof Error ? `: ${error.message}` : ''
+      console.error('Image export failed', error)
+      this.showToast(`Image export failed${detail}`)
     } finally {
       this.exporting = false
     }
@@ -429,10 +458,11 @@ export class OdxApp extends LitElement {
           ${this.store.projects.map((project) => {
             const display = getDisplayProfile(project.displayId)
             const size = getPixelSize(display, project.orientation)
+            const driver = CUSTOM_DRIVERS.find((item) => item.id === project.driverId)
             return html`
               <button class="project-card ${project.id === this.project.id ? 'active' : ''}" @click=${() => this.selectProject(project.id)}>
                 <span class="mini-screen" style=${styleMap({ '--mini-aspect': String(size.width / size.height) })}>${project.grid.columns}×${project.grid.rows}</span>
-                <span class="project-card-copy"><strong>${project.name}</strong><span>${display.name}</span></span>
+                <span class="project-card-copy"><strong>${project.name}</strong><span>${driver ? `${driver.name} + ${display.name}` : display.name}</span></span>
               </button>
             `
           })}
@@ -441,7 +471,7 @@ export class OdxApp extends LitElement {
         <div class="rail-actions" aria-label="Project actions">
           <button class="rail-action" @click=${() => this.projectImport?.click()}>${renderIcon(mdiPlus)} Import</button>
           <button class="rail-action" @click=${() => downloadJson(this.project)}>${renderIcon(mdiExportVariant)} Project file</button>
-          <button class="rail-action" @click=${() => this.exportImage('jpeg')}>${renderIcon(mdiDownload)} Export JPG</button>
+          <button class="rail-action" ?disabled=${this.editorMode === 'layout'} title=${this.editorMode === 'layout' ? 'Apply or cancel layout changes before exporting' : 'Export JPG'} @click=${() => this.exportImage('jpeg')}>${renderIcon(mdiDownload)} Export JPG</button>
           <button class="rail-action danger" @click=${this.deleteProject}>${renderIcon(mdiDeleteOutline)} Delete</button>
         </div>
       </aside>
@@ -451,23 +481,49 @@ export class OdxApp extends LitElement {
   private renderToolbar(): TemplateResult {
     const project = this.canvasProject
     const display = this.canvasDisplay
+    const driver = this.canvasDriver
+    const customPanels = driver
+      ? CUSTOM_PANEL_PROFILES.filter((panel) => isPanelCompatible(driver, panel))
+      : CUSTOM_PANEL_PROFILES
     return html`
       <div class="device-toolbar layout-toolbar">
         <div class="control grow">
           <label for="device-model">Device model</label>
-          <select id="device-model" .value=${display.id} @change=${this.changeDisplay}>
+          <select id="device-model" .value=${display.family === 'Custom' ? 'custom' : display.id} @change=${this.changeDisplay}>
             <optgroup label="SOLUM · Newton Pro">
               ${DISPLAY_PROFILES.filter((profile) => profile.family === 'Newton Pro').map((profile) => html`
                 <option value=${profile.id} ?selected=${profile.id === display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}${profile.freezer ? ' · mono' : ''}</option>
               `)}
             </optgroup>
-            <optgroup label="OpenDisplay reference hardware">
-              ${DISPLAY_PROFILES.filter((profile) => profile.family === 'OpenDisplay').map((profile) => html`
+            <optgroup label="Seeed · ready to use">
+              ${DISPLAY_PROFILES.filter((profile) => profile.family === 'OpenDisplay' && profile.manufacturer === 'Seeed Studio').map((profile) => html`
                 <option value=${profile.id} ?selected=${profile.id === display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}</option>
               `)}
             </optgroup>
+            <optgroup label="Other OpenDisplay hardware">
+              ${DISPLAY_PROFILES.filter((profile) => profile.family === 'OpenDisplay' && profile.manufacturer !== 'Seeed Studio').map((profile) => html`
+                <option value=${profile.id} ?selected=${profile.id === display.id}>${profile.name} · ${profile.nativeWidth}×${profile.nativeHeight}</option>
+              `)}
+            </optgroup>
+            <optgroup label="Custom hardware">
+              <option value="custom" ?selected=${display.family === 'Custom'}>Custom · driver board + verified panel</option>
+            </optgroup>
           </select>
         </div>
+        ${display.family === 'Custom' ? html`
+          <div class="control custom-control">
+            <label for="custom-driver">Driver board</label>
+            <select id="custom-driver" .value=${driver?.id ?? DEFAULT_CUSTOM_DRIVER_ID} @change=${this.changeCustomDriver}>
+              ${CUSTOM_DRIVERS.map((item) => html`<option value=${item.id} ?selected=${item.id === driver?.id}>${item.name} · ${item.connectorPins.join('/')} pin</option>`)}
+            </select>
+          </div>
+          <div class="control custom-control panel-control">
+            <label for="custom-panel">Verified panel</label>
+            <select id="custom-panel" .value=${display.id} @change=${this.changeCustomPanel}>
+              ${customPanels.map((panel) => html`<option value=${panel.id} ?selected=${panel.id === display.id}>${panel.name}</option>`)}
+            </select>
+          </div>
+        ` : nothing}
         <div class="control">
           <label for="palette">Palette</label>
           <select id="palette" .value=${project.palette} @change=${this.changePalette}>
@@ -488,11 +544,12 @@ export class OdxApp extends LitElement {
 
   private renderWidgetToolbar(): TemplateResult {
     const pixels = getPixelSize(this.display, this.project.orientation)
+    const driver = CUSTOM_DRIVERS.find((item) => item.id === this.project.driverId)
     return html`
       <div class="device-toolbar widget-toolbar">
         <div class="device-summary">
           <span class="step-kicker">Step 2 · Widgets</span>
-          <strong>${this.display.name}</strong>
+          <strong>${driver ? `${driver.name} + ${this.display.name}` : this.display.name}</strong>
           <span>${pixels.width}×${pixels.height} · ${PALETTE_LABELS[this.project.palette]} · ${this.project.grid.columns}×${this.project.grid.rows} grid</span>
         </div>
         <wa-button size="s" appearance="outlined" @click=${this.openLayoutEditor}>${renderIcon(mdiTuneVariant)} Edit device & layout</wa-button>
@@ -567,11 +624,12 @@ export class OdxApp extends LitElement {
   private renderCanvas(): TemplateResult {
     const project = this.canvasProject
     const display = this.canvasDisplay
+    const driver = this.canvasDriver
     const pixels = getPixelSize(display, project.orientation)
     return html`
       <main class="canvas-area">
         <div class="canvas-stage" style=${styleMap({ '--screen-aspect': String(pixels.width / pixels.height) })}>
-          <div class="screen-meta"><span>${display.manufacturer} · ${display.diagonal}″</span><code>${pixels.width} × ${pixels.height} px</code></div>
+          <div class="screen-meta"><span>${driver?.name ?? `${display.manufacturer} · ${display.diagonal}″`}</span><code>${pixels.width} × ${pixels.height} px</code></div>
           <div class="preview-boundary">
             <div class="screen-bezel">
               <div
@@ -642,13 +700,16 @@ export class OdxApp extends LitElement {
   private renderLayoutGuide(): TemplateResult {
     const project = this.canvasProject
     const pixels = getPixelSize(this.canvasDisplay, project.orientation)
+    const driver = this.canvasDriver
     return html`
       <aside class="inspector layout-guide">
         <span class="step-kicker">Step 1 · Device & layout</span>
         <h2>Prepare the canvas</h2>
         <p>Choose the hardware and palette, then compose regions before assigning widgets.</p>
         <dl class="device-facts">
-          <div><dt>Device</dt><dd>${this.canvasDisplay.name}</dd></div>
+          ${driver
+            ? html`<div><dt>Driver</dt><dd>${driver.name}</dd></div><div><dt>Panel</dt><dd>${this.canvasDisplay.name}</dd></div>`
+            : html`<div><dt>Device</dt><dd>${this.canvasDisplay.name}</dd></div>`}
           <div><dt>Output</dt><dd>${pixels.width} × ${pixels.height} px</dd></div>
           <div><dt>Grid</dt><dd>${project.grid.columns} × ${project.grid.rows}</dd></div>
           <div><dt>Regions</dt><dd>${project.regions.length}</dd></div>
@@ -680,7 +741,7 @@ export class OdxApp extends LitElement {
     return html`
       <div class="app-shell">
         <header class="topbar">
-          <div class="brand"><span class="brand-mark">ODX</span><span class="brand-copy"><strong>OpenDisplay Studio</strong><span>E-paper composer</span></span></div>
+          <div class="brand"><span class="brand-mark">ODX</span><span class="brand-copy"><strong>OpenDisplay Studio</strong><span>Proof of Concept</span></span></div>
           <div class="project-context">
             <div class="project-title"><strong>${this.project.name}</strong><span class="autosave-state">${this.editorMode === 'layout' ? 'Changes not applied' : 'Saved locally'}</span></div>
             <div class="workflow" aria-label="Editor workflow">
