@@ -528,13 +528,20 @@ export const appStyles = css`
     container-type: size;
   }
 
+  .screen-fit {
+    position: relative;
+    flex: none;
+  }
+
   .screen-bezel {
-    width: min(100cqw, calc((100cqh - 24px) * var(--screen-aspect, 1.6) + 24px));
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
     padding: 12px;
     border-radius: clamp(12px, 2vw, 24px);
     background: #25292c;
     box-shadow: 0 16px 42px rgba(31, 43, 50, 0.18), 0 2px 7px rgba(31, 43, 50, 0.22);
-    position: relative;
+    transform-origin: top left;
   }
 
   .screen-bezel::after {
@@ -549,9 +556,7 @@ export const appStyles = css`
   }
 
   .display-screen {
-    width: 100%;
-    height: auto;
-    aspect-ratio: var(--screen-aspect, 1.6);
+    aspect-ratio: auto;
     position: relative;
     overflow: hidden;
     display: grid;

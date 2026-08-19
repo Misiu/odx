@@ -1,6 +1,6 @@
 import { html } from 'lit'
 import { mdiChartLine } from '@mdi/js'
-import type { WidgetDefinition } from '../../types'
+import type { PaletteId, WidgetDefinition } from '../../types'
 import { configNumber, configText, renderIcon } from '../shared'
 import { sensorHistoryStyles } from './styles'
 
@@ -11,6 +11,16 @@ const chartPoints = (hours: number): string => {
     const y = 53 - Math.sin(index * 0.74) * 18 - Math.cos(index * 0.31) * 8
     return `${x.toFixed(1)},${y.toFixed(1)}`
   }).join(' ')
+}
+
+const CHART_COLORS: Record<PaletteId, { accent: string; ink: string; muted: string }> = {
+  bw: { accent: '#080808', ink: '#080808', muted: '#080808' },
+  gray4: { accent: '#363733', ink: '#10110f', muted: '#777872' },
+  gray16: { accent: '#30312d', ink: '#111210', muted: '#686963' },
+  bwr: { accent: '#c81e1e', ink: '#101010', muted: '#444444' },
+  bwy: { accent: '#e4b800', ink: '#111111', muted: '#444444' },
+  bwry: { accent: '#d22626', ink: '#111111', muted: '#464646' },
+  spectra6: { accent: '#c82723', ink: '#101010', muted: '#285995' },
 }
 
 export const sensorHistoryWidget: WidgetDefinition = {
@@ -46,6 +56,7 @@ export const sensorHistoryWidget: WidgetDefinition = {
   render: (config, context) => {
     const hours = configNumber(config, 'hours')
     const details = configText(config, 'details')
+    const chartColors = CHART_COLORS[context.palette]
     return html`
       <div class="widget sensor-widget ${context.compact ? 'compact' : ''}">
         <div class="widget-heading">
@@ -63,10 +74,10 @@ export const sensorHistoryWidget: WidgetDefinition = {
           : ''}
         <svg class="history-chart" viewBox="0 0 240 90" preserveAspectRatio="none" aria-label="Mock temperature history chart">
           ${config.showGrid
-            ? html`<path class="chart-grid" d="M0 22.5H240 M0 45H240 M0 67.5H240"></path>`
+            ? html`<path class="chart-grid" d="M0 22.5H240 M0 45H240 M0 67.5H240" style=${`fill:none;stroke:${chartColors.muted};stroke-width:0.6;stroke-dasharray:2 3;opacity:0.5`}></path>`
             : ''}
-          <polyline class="chart-line" points=${chartPoints(hours)}></polyline>
-          <path class="chart-axis" d="M0 89.5H240"></path>
+          <polyline class="chart-line" points=${chartPoints(hours)} style=${`fill:none;stroke:${chartColors.accent};stroke-width:3;vector-effect:non-scaling-stroke`}></polyline>
+          <path class="chart-axis" d="M0 89.5H240" style=${`fill:none;stroke:${chartColors.ink};stroke-width:1`}></path>
         </svg>
       </div>
     `

@@ -30,7 +30,7 @@ Create a production build with `npm run build`. The generated `dist/` directory 
 1. Open **Device & layout** to choose the model, palette, orientation, and region composition. Changes remain a draft until **Apply layout** is selected.
 2. Use **Widgets** to assign content and edit widget-specific options. Select **Edit device & layout** whenever the hardware setup or region structure needs to change.
 
-The preview fits every device proportionally inside an 880 × 520 CSS-pixel canvas. Export still renders at the selected display's native pixel resolution.
+The device profile is the single source of truth for output dimensions. The display is always laid out at its native pixel size; the editor only scales that finished surface proportionally to fit inside an 880 × 520 CSS-pixel canvas. PNG and JPG export capture the same native surface without reflowing it.
 
 ## Architecture
 

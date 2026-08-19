@@ -103,12 +103,31 @@ export class OdxApp extends LitElement {
   @state() private layoutDraft?: ScreenProject
 
   @query('#display-screen') private displayScreen?: HTMLElement
+  @query('.preview-boundary') private previewBoundary?: HTMLElement
+  @query('.screen-fit') private screenFit?: HTMLElement
+  @query('.screen-bezel') private screenBezel?: HTMLElement
   @query('#rename-dialog') private renameDialog?: HTMLDialogElement
   @query('#project-import') private projectImport?: HTMLInputElement
 
   private toastTimer?: number
+  private previewResizeObserver?: ResizeObserver
 
   static styles = [appStyles, sharedWidgetStyles, ...widgetStyles]
+
+  protected firstUpdated(): void {
+    this.previewResizeObserver = new ResizeObserver(() => this.updatePreviewScale())
+    if (this.previewBoundary) this.previewResizeObserver.observe(this.previewBoundary)
+    this.updatePreviewScale()
+  }
+
+  protected updated(): void {
+    this.updatePreviewScale()
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback()
+    this.previewResizeObserver?.disconnect()
+  }
 
   private get project(): ScreenProject {
     return this.store.projects.find((item) => item.id === this.store.activeProjectId) ?? this.store.projects[0]
@@ -134,6 +153,23 @@ export class OdxApp extends LitElement {
 
   private get selectedRegion(): GridRegion | undefined {
     return this.project.regions.find((region) => region.id === this.selectedRegionId)
+  }
+
+  private updatePreviewScale(): void {
+    if (!this.previewBoundary || !this.screenFit || !this.screenBezel) return
+    const pixels = getPixelSize(this.canvasDisplay, this.canvasProject.orientation)
+    const frameWidth = pixels.width + 24
+    const frameHeight = pixels.height + 24
+    const scale = Math.max(0.05, Math.min(
+      2,
+      this.previewBoundary.clientWidth / frameWidth,
+      this.previewBoundary.clientHeight / frameHeight,
+    ))
+    this.screenFit.style.width = `${frameWidth * scale}px`
+    this.screenFit.style.height = `${frameHeight * scale}px`
+    this.screenBezel.style.width = `${frameWidth}px`
+    this.screenBezel.style.height = `${frameHeight}px`
+    this.screenBezel.style.transform = `scale(${scale})`
   }
 
   private persist(store: PersistedState): void {
@@ -628,18 +664,25 @@ export class OdxApp extends LitElement {
     const pixels = getPixelSize(display, project.orientation)
     return html`
       <main class="canvas-area">
-        <div class="canvas-stage" style=${styleMap({ '--screen-aspect': String(pixels.width / pixels.height) })}>
+        <div class="canvas-stage">
           <div class="screen-meta"><span>${driver?.name ?? `${display.manufacturer} · ${display.diagonal}″`}</span><code>${pixels.width} × ${pixels.height} px</code></div>
           <div class="preview-boundary">
-            <div class="screen-bezel">
-              <div
-                id="display-screen"
-                class="display-screen ${this.exporting ? 'exporting' : ''}"
-                data-palette=${project.palette}
-                style=${styleMap({ '--grid-columns': String(project.grid.columns), '--grid-rows': String(project.grid.rows) })}
-              >
-                ${project.regions.map((region) => this.renderScreenRegion(region))}
-                ${this.renderMergeLayer()}
+            <div class="screen-fit">
+              <div class="screen-bezel">
+                <div
+                  id="display-screen"
+                  class="display-screen ${this.exporting ? 'exporting' : ''}"
+                  data-palette=${project.palette}
+                  style=${styleMap({
+                    '--grid-columns': String(project.grid.columns),
+                    '--grid-rows': String(project.grid.rows),
+                    width: `${pixels.width}px`,
+                    height: `${pixels.height}px`,
+                  })}
+                >
+                  ${project.regions.map((region) => this.renderScreenRegion(region))}
+                  ${this.renderMergeLayer()}
+                </div>
               </div>
             </div>
           </div>

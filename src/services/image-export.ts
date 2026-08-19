@@ -99,6 +99,7 @@ export const renderDeviceImage = async (
     top: '0',
     opacity: '0',
     pointerEvents: 'none',
+    transform: 'none',
   })
 
   try {
